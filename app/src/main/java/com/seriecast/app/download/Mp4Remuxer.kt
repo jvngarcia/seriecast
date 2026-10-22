@@ -37,6 +37,22 @@ object Mp4Remuxer {
         }
     }
 
+    /**
+     * Output file for a remux.
+     *
+     * It is never the source itself. yt-dlp's native HLS downloader routinely leaves MPEG-TS bytes
+     * inside a file already named `.mp4`, so a naive `"$baseName.mp4"` target resolves to the source:
+     * MediaMuxer truncates its output and the download is destroyed before the first sample is
+     * written. Internal so the guarantee is unit-tested without touching the platform muxer.
+     */
+    internal fun remuxTarget(source: File, baseName: String): File {
+        val target = File(source.parentFile, "$baseName.remux.mp4")
+        check(target.absolutePath != source.absolutePath) {
+            "el destino del remux no puede ser el archivo de origen"
+        }
+        return target
+    }
+
     private fun normalizeExtension(source: File, baseName: String): File {
         if (source.name.endsWith(".mp4", ignoreCase = true)) return source
         val target = File(source.parentFile, "$baseName.mp4")
@@ -45,21 +61,23 @@ object Mp4Remuxer {
     }
 
     private fun remuxOrKeep(source: File, baseName: String): Result {
-        val target = File(source.parentFile, "$baseName.mp4")
-        if (target.exists() && target != source) target.delete()
+        val temp = remuxTarget(source, baseName)
+        val desired = File(source.parentFile, "$baseName.mp4")
+        if (temp.exists()) temp.delete()
         return try {
-            remux(source, target)
-            val length = target.length()
-            if (length > 0) {
-                source.delete()
-                Result(target, true, null)
-            } else {
-                target.delete()
+            remux(source, temp)
+            if (temp.length() <= 0L) {
+                runCatching { temp.delete() }
                 keepOriginal(source, "El remux a MP4 produjo un archivo vacío.")
+            } else {
+                // The source is the only copy until this point, so it is deleted only now.
+                runCatching { source.delete() }
+                val finalFile = if (temp.renameTo(desired)) desired else temp
+                Result(finalFile, true, null)
             }
         } catch (t: Throwable) {
-            Log.w(TAG, "remux failed", t)
-            runCatching { target.delete() }
+            Log.w(TAG, "remux failed: ${t.javaClass.simpleName}: ${t.message}", t)
+            runCatching { if (temp.exists()) temp.delete() }
             keepOriginal(source, "No se pudo remuxear a MP4: ${t.message ?: t.javaClass.simpleName}")
         }
     }

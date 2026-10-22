@@ -191,7 +191,12 @@ internal class UpnpHttpServer(
         sb.append("Server: ").append(SERVER).append("\r\n")
         sb.append("Content-Type: ").append(contentType).append("\r\n")
         for ((k, v) in headers) {
-            if (v.isEmpty()) sb.append(k).append("\r\n") else sb.append(k).append(": ").append(v).append("\r\n")
+            // A header with an empty value must still be written as "Name:" — UPnP requires exactly
+            // "EXT:". Writing bare "EXT" makes strict clients (curl, some TV firmwares) abort the
+            // whole response before reading the body.
+            sb.append(k).append(':')
+            if (v.isNotEmpty()) sb.append(' ').append(v)
+            sb.append("\r\n")
         }
         sb.append("Connection: close\r\n\r\n")
         out.write(sb.toString().toByteArray(Charsets.ISO_8859_1))
