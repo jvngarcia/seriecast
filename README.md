@@ -105,6 +105,34 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ## Estado de verificación
 
-Este árbol se escribió sin cadena de build disponible (no había JDK, Android SDK ni Gradle en la
-máquina de origen), así que **no hay compilación ni ejecución verificada**. Los puntos de riesgo
-concretos están listados al final de `docs/BUILD.md`.
+Verificado en un emulador **Android 10 (API 29), imagen AOSP sin Google Play Services** (0 paquetes
+`com.google.android.gms`), que es el entorno objetivo de la spec.
+
+| Qué | Estado | Evidencia |
+|---|---|---|
+| Compilación | ✅ | `:app:assembleDebug` verde; APK de 66.383.143 bytes con `libpython3.11.so` en `arm64-v8a`, `armeabi-v7a` y `x86_64` |
+| Tests JVM | ✅ | **33/33**, 0 fallos — SSDP, SOAP `Browse`, DIDL, `Range` 206/416 sobre HTTP real, detección de contenedor y guardas del remux |
+| Python embebido | ✅ | `Chaquopy started: 3.11.10`; la UI muestra `yt-dlp 2025.01.15` leído del APK; `yt_dlp/`, `certifi/`, `Cryptodome/` dentro de `requirements-common.imy` |
+| Servidor DLNA | ✅ | `description.xml` 200 con `MediaServer:1` y header `EXT:`; `Browse` 200 con DIDL; `isForeground=true foregroundId=4242` |
+| Descarga real desde la UI | ✅ | `Listo: sample 5s.mp4`, 2.848.208 bytes, magic `ftypisom` |
+| Remux TS → MP4 | ✅ | HLS real: TS de 39.392.016 bytes (`0x47`) → MP4 de 36.083.089 bytes (`ftypmp42`), duración `00:10:34.600` leída por `MediaMetadataRetriever` |
+| Servir a un televisor | ✅ | `GET` 200 con el tamaño exacto; `Range 0-99`, `1000-`, sufijo `-16` y `1000000-1000099` → 206 con `Content-Range` correcto; `416` con `bytes */N`; `HEAD`; `404` |
+| Sniffer de WebView (§S4) | ✅ | `shouldInterceptRequest` capturó el `.m3u8`, apareció como `HLS · test-streams.mux.dev`, y `Usar` copió URL y Referer al formulario |
+| **Descubrimiento por un televisor físico** | ❌ **sin verificar** | requiere el TV en la misma LAN. Depende del router y del firmware; usar el autodiagnóstico y la sonda `M-SEARCH` de `docs/TV-TROUBLESHOOTING.md` |
+
+Cadena de build usada: JDK 17.0.20.1 + Gradle 8.9 + Android SDK 35 + CPython 3.11.17.
+
+### Defectos que solo aparecieron al ejecutar
+
+Compilar en verde no probaba nada: la primera corrida en el dispositivo encontró siete defectos,
+todos corregidos y con test de regresión donde era posible.
+
+| # | Defecto | Cómo se manifiesta |
+|---|---|---|
+| 1 | `python {}` no existe en el DSL de Chaquopy para Kotlin DSL | build falla con 4 `Unresolved reference` |
+| 2 | `org.gradle.parallel=true` + KGP 2.0.21 | `compileDebugKotlin` muere con *state lock* |
+| 3 | Chaquopy instala con `--no-deps` y yt-dlp declara sus deps en el extra `default` | el APK sale sin `certifi` ni `pycryptodomex`: HLS con AES-128 roto |
+| 4 | `callAttr("version")` sobre `sys.version`, que es un atributo | `pythonAvailable=false` aunque Python arrancó |
+| 5 | `PyObject.getAttr` no existe | error de compilación (se usó `platform.python_version()`) |
+| 6 | Header `EXT` escrito sin los dos puntos | `curl` aborta la respuesta entera (*Header without colon*): el servidor parecía no responder |
+| 7 | Destino del remux igual al archivo de origen | **pérdida de datos**: `MediaMuxer` truncaba el archivo que se estaba leyendo y el `catch` borraba la única copia |

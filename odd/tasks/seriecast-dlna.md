@@ -114,3 +114,64 @@ firma, `adb install` y checklist de red local.
   explícito. Las rutas de commit quedan registradas arriba para cuando exista el repo.
 - D7: sin JDK/Android SDK/Gradle en esta máquina → no hay verificación de compilación. Riesgo
   declarado, no mitigado.
+
+**L3 (2025-10-22) — entorno de verificación montado y build verde.** Supera D7 (que ya no aplica).
+Se instaló todo user-local, sin `sudo` y sin tocar el sistema: JDK Temurin 17.0.20.1 en
+`~/.local/opt/jdk-17`, Gradle 8.9 en `~/.local/opt/gradle-8.9`, CPython 3.11.17 standalone en
+`~/.local/opt/py311` (el `python3` del sistema es 3.14 y Chaquopy no lo soporta → se pasa por
+`-Pchaquopy.buildPython`), Android SDK 35 + build-tools 35.0.0 + platform-tools 37.0.1 en
+`~/Android/Sdk`, y AVD `seriecast29` con imagen **AOSP `android-29;default;x86_64` (sin Google
+APIs)**. kvm se habilitó con `sudo chmod 666 /dev/kvm`.
+
+Comando de build/verificación:
+`./gradlew :app:assembleDebug :app:testDebugUnitTest -Pchaquopy.buildPython=$HOME/.local/opt/py311/bin/python3`
+(`org.gradle.parallel` debe quedar en `false`, ver L4 #2).
+
+Verificado con evidencia: APK de 66.383.143 bytes con `libpython3.11.so` en arm64-v8a/armeabi-v7a/
+x86_64; **33/33 tests JVM**; `Chaquopy started: 3.11.10` y `pythonAvailable=1` en el dispositivo;
+UI mostrando `yt-dlp 2025.01.15 — faltan: mutagen, requests, websockets` (el puente
+Kotlin→Python→JSON leyendo el APK real); `description.xml` 200 con `MediaServer:1` y header `EXT:`
+correcto; SOAP `Browse` 200 con DIDL; `isForeground=true foregroundId=4242`; `gms = 0 paquetes`.
+Pipeline completo: descarga real desde la UI (`Listo: sample 5s.mp4`, 2.848.208 bytes, `ftypisom`),
+remux HLS real (TS 39.392.016 B `0x47` → MP4 36.083.089 B `ftypmp42`, duración `00:10:34.600`),
+servido con `GET` 200 exacto y `Range` 0-99 / 1000- / -16 / 1000000-1000099 → 206 con
+`Content-Range` correcto, `416` con `bytes */N`, `HEAD` y `404`; y el sniffer §S4 capturando el
+`.m3u8` (`Streams detectados (1)`, `HLS · test-streams.mux.dev`) con `Usar` copiando URL y Referer.
+
+**L4 — siete defectos que solo aparecieron ejecutando** (compilar en verde no probaba nada):
+1. `python {}` no existe en el DSL de Chaquopy para Kotlin DSL → se usa
+   `extensions.configure<ChaquopyExtension> { defaultConfig { version; buildPython(...); pip {...} } }`.
+2. `org.gradle.parallel=true` + AGP 8.7 + KGP 2.0.21 matan `compileDebugKotlin` con
+   *"Current thread does not hold the state lock"* → paralelismo desactivado.
+3. Chaquopy pasa **`--no-deps` siempre** (su `pip_install.py:74`) y yt-dlp declara sus deps bajo el
+   extra `default` → el APK salió sin `certifi` ni `pycryptodomex` (HLS con AES-128 roto). Hay que
+   enumerar cada dependencia en `pip {}`.
+4. `callAttr("version")` sobre `sys.version`, que es un atributo → `pythonAvailable=false` con Python
+   funcionando. Regla: la instrumentación nunca decide la disponibilidad del feature.
+5. `PyObject.getAttr` no existe → se usa `platform.python_version()` vía `callAttr`.
+6. Header `EXT` escrito sin los dos puntos → `curl` aborta la respuesta entera (*Header without
+   colon*). Los tests de protocolo necesitan socket crudo, no `HttpURLConnection`.
+7. **Pérdida de datos**: el destino del remux (`$baseName.mp4`) era el mismo archivo que el
+   `MediaExtractor` leía cuando yt-dlp deja TS en un `.mp4`; `MediaMuxer` lo truncaba y el `catch` lo
+   borraba. La UI decía "Listo" con la carpeta vacía. Corregido con destino `$baseName.remux.mp4`
+   garantizado distinto + 3 tests de regresión en `Mp4RemuxerTest`.
+
+**L5 — bloqueante al cierre: el teléfono físico no se puede conectar desde acá.**
+`systemd-detect-virt` → `wsl`, y no existe `/sys/bus/usb/devices`: **WSL2 no expone USB por defecto**,
+así que `adb` nunca verá el Note 8 (no es cable ni udev). Rutas para la próxima sesión:
+(a) corto y directo al objetivo: copiar
+`app/build/outputs/apk/debug/app-debug.apk` al teléfono e instalarlo, y verificar desde **PowerShell
+de Windows** con `curl.exe http://IP:8080/description.xml` y una sonda `M-SEARCH` UDP a
+`239.255.255.250:1900` (ST `urn:schemas-upnp-org:device:MediaServer:1`);
+(b) `winget install --exact dorssel.usbipd-win` + `usbipd bind/attach --wsl --busid <BUSID>`;
+(c) adb de Windows como servidor (`adb.exe -a nodaemon server`) y en WSL
+`export ADB_SERVER_SOCKET=tcp:$(ip route show default | awk '{print $3}'):5037`.
+
+**L6 — estado del repo al cerrar.** Rama `feature/agents-md-gitflow`, sin commitear: 12 archivos
+modificados (`.gitignore`, `README.md`, `app/build.gradle.kts`, `SerieCastApp.kt`, `SsdpResponder.kt`,
+`UpnpHttpServer.kt`, `Mp4Remuxer.kt`, `YtDlpEngine.kt`, `downloader.py`, `requirements.txt`,
+`docs/BUILD.md`, `gradle.properties`) y 5 nuevos (`AGENTS.md`, `app/src/test/`, `gradlew`,
+`gradlew.bat`, `gradle/wrapper/gradle-wrapper.jar`, `scripts/verification/`). Mensaje propuesto:
+`fix(download): prevent data loss in remux and make the APK runnable`. El AVD `seriecast29` sigue
+vivo con `wm density` en 100 (revertir con `adb shell wm density reset`; apagar con `adb emu kill`).
+Lo único **no verificado** en todo el proyecto: que un televisor físico descubra el teléfono por SSDP.
