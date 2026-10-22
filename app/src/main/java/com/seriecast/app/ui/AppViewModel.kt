@@ -266,7 +266,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun consumeSnifferCandidate(stream: com.seriecast.app.download.SniffedStream): DownloadForm = DownloadForm(
         url = stream.url,
-        referer = stream.pageUrl,
+        referer = stream.effectiveReferer.orEmpty(),
         cookie = stream.cookie.orEmpty(),
     )
 

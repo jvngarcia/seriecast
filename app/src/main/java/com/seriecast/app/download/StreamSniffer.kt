@@ -14,12 +14,22 @@ data class SniffedStream(
     val pageUrl: String,
     val cookie: String?,
     val seenAtMillis: Long,
+    /** The `Referer` the page sent with the media request, when the WebView exposes it. */
+    val referer: String? = null,
 ) {
     val displayHost: String
         get() = runCatching { java.net.URI(url).host ?: url }.getOrDefault(url)
 
     val displayTail: String
         get() = url.substringAfterLast('/').take(64)
+
+    /**
+     * Referer to hand to the downloader: the embed page that actually requested the media is more
+     * accurate than the aggregator page the user opened, but the latter is better than nothing.
+     */
+    val effectiveReferer: String?
+        get() = referer?.trim()?.takeIf { it.isNotEmpty() }
+            ?: pageUrl.trim().takeIf { it.isNotEmpty() }
 }
 
 /**
@@ -45,7 +55,12 @@ class StreamSniffer {
     }
 
     /** Feeds one observed URL; non-media URLs are ignored. */
-    fun offer(rawUrl: String, cookie: String?) {
+    fun offer(
+        rawUrl: String,
+        cookie: String?,
+        referer: String? = null,
+        pageUrl: String = currentPageUrl,
+    ) {
         val url = rawUrl.trim()
         if (url.isEmpty()) return
         // blob:/data: cannot be handed to yt-dlp: they only exist inside this WebView instance.
@@ -53,7 +68,14 @@ class StreamSniffer {
         val kind = classify(url) ?: return
         if (seen.contains(url)) return
         seen.add(url)
-        val entry = SniffedStream(url, kind, currentPageUrl, cookie, System.currentTimeMillis())
+        val entry = SniffedStream(
+            url = url,
+            kind = kind,
+            pageUrl = pageUrl,
+            cookie = cookie,
+            seenAtMillis = System.currentTimeMillis(),
+            referer = referer?.trim()?.takeIf { it.isNotEmpty() },
+        )
         internal.value = (listOf(entry) + internal.value).take(MAX_CANDIDATES)
     }
 

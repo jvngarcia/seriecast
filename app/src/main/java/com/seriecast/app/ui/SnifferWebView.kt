@@ -57,7 +57,17 @@ fun SnifferWebView(
                     request: WebResourceRequest?,
                 ): WebResourceResponse? {
                     request?.url?.toString()?.let { candidate ->
-                        sniffer.offer(candidate, CookieManager.getInstance().getCookie(candidate))
+                        // Many CDNs reject the download without the Referer the player used; the
+                        // WebView exposes it here before the request leaves the app.
+                        val headers = request.requestHeaders.orEmpty()
+                        val referer = headers.entries
+                            .firstOrNull { it.key.equals("Referer", ignoreCase = true) }
+                            ?.value
+                        sniffer.offer(
+                            rawUrl = candidate,
+                            cookie = CookieManager.getInstance().getCookie(candidate),
+                            referer = referer,
+                        )
                     }
                     return null
                 }
@@ -69,7 +79,7 @@ fun SnifferWebView(
                 }
 
                 override fun onLoadResource(view: WebView?, url: String?) {
-                    url?.let { sniffer.offer(it, null) }
+                    url?.let { sniffer.offer(it, cookie = null) }
                 }
             }
         }

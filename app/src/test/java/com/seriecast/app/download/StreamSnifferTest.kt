@@ -1,6 +1,7 @@
 package com.seriecast.app.download
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -69,5 +70,50 @@ class StreamSnifferTest {
         )
 
         assertTrue(streams.isEmpty())
+    }
+
+    @Test
+    fun `captures the referer and cookie the media request carried`() {
+        val sniffer = StreamSniffer()
+        sniffer.offer(
+            "https://cdn.example.com/stream/abc/master.m3u8",
+            cookie = "sid=1",
+            referer = "https://player.example.com/e/abc",
+            pageUrl = "https://aggregator.example/ver/serie-s1x12/",
+        )
+
+        val stream = sniffer.candidates.value.single()
+        assertEquals("https://player.example.com/e/abc", stream.referer)
+        // Existing behaviour: the cookie of the request still travels with the candidate.
+        assertEquals("sid=1", stream.cookie)
+        assertEquals("https://aggregator.example/ver/serie-s1x12/", stream.pageUrl)
+    }
+
+    @Test
+    fun `falls back to the page url when the request has no referer`() {
+        val sniffer = StreamSniffer()
+        sniffer.offer(
+            "https://cdn.example.com/stream/abc/master.m3u8",
+            cookie = null,
+            referer = null,
+            pageUrl = "https://aggregator.example/ver/serie-s1x12/",
+        )
+
+        val stream = sniffer.candidates.value.single()
+        assertNull(stream.referer)
+        assertEquals("https://aggregator.example/ver/serie-s1x12/", stream.effectiveReferer)
+    }
+
+    @Test
+    fun `prefers the request referer over the page url`() {
+        val sniffer = StreamSniffer()
+        sniffer.offer(
+            "https://cdn.example.com/stream/abc/master.m3u8",
+            cookie = null,
+            referer = "https://player.example.com/e/abc",
+            pageUrl = "https://aggregator.example/ver/serie-s1x12/",
+        )
+
+        assertEquals("https://player.example.com/e/abc", sniffer.candidates.value.single().effectiveReferer)
     }
 }
