@@ -65,16 +65,35 @@ class StreamSniffer {
     private fun classify(url: String): StreamKind? {
         val lower = url.lowercase(Locale.ROOT)
         val path = lower.substringBefore('?').substringBefore('#')
-        return when {
-            path.endsWith(".m3u8") || path.contains("manifest.m3u8") -> StreamKind.HLS
-            path.endsWith(".mpd") -> StreamKind.DASH
+        when {
+            path.endsWith(".m3u8") || path.contains("manifest.m3u8") -> return StreamKind.HLS
+            path.endsWith(".mpd") -> return StreamKind.DASH
             path.endsWith(".mp4") || path.endsWith(".m4v") || path.endsWith(".mkv") ||
-                path.endsWith(".webm") || path.endsWith(".mov") -> StreamKind.PROGRESSIVE
-            else -> null
+                path.endsWith(".webm") || path.endsWith(".mov") -> return StreamKind.PROGRESSIVE
         }
+        // An asset is never a stream, even when its name contains "hls" or "playlist".
+        if (ASSET_SUFFIXES.any { path.endsWith(it) }) return null
+        // Plenty of CDNs hide the extension behind a route or a signed query
+        // (``/playlist?token=…``, ``/hls/<id>/720``). Fall back to the vocabulary of the URL.
+        if (DASH_HINTS.any { lower.contains(it) }) return StreamKind.DASH
+        if (HLS_HINTS.any { lower.contains(it) }) return StreamKind.HLS
+        return null
     }
 
     private companion object {
         const val MAX_CANDIDATES = 12
+
+        /** Request targets that can never be a video source; checked before the hint words. */
+        val ASSET_SUFFIXES = listOf(
+            ".js", ".mjs", ".css", ".map", ".json", ".html", ".htm", ".php", ".txt", ".xml",
+            ".vtt", ".srt", ".svg", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico",
+            ".woff", ".woff2", ".ttf", ".otf",
+            // Segments: only the playlist that lists them is downloadable by yt-dlp.
+            ".ts", ".m4s",
+        )
+
+        val HLS_HINTS = listOf("m3u8", "/hls/", "/hls?", "hls_", "hls=", "manifest", "playlist")
+
+        val DASH_HINTS = listOf(".mpd", "/mpd/", "/mpd?", "dash=")
     }
 }
