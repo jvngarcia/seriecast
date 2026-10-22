@@ -1,7 +1,21 @@
-# yt-dlp only. Everything else it needs is pulled transitively.
+# Runtime dependencies embedded in the APK by Chaquopy.
 #
-# Build risk to know about: recent yt-dlp versions depend on pycryptodomex, which has C extensions.
-# Chaquopy can build it when the NDK is installed. If the wheel build fails on your machine, either
-# install the NDK or drop the AES-128 HLS path with `--no-deps` and add the pure-Python deps your
-# target site actually needs. See docs/BUILD.md.
+# READ THIS BEFORE ADDING A LINE:
+# Chaquopy runs pip with --no-deps, always (see its pip_install.py). Dependency resolution does not
+# happen, and yt-dlp declares every runtime dependency under the optional "default" extra, so
+# `pip install yt-dlp` on a desktop would not pull them either. Each package that the app needs at
+# runtime MUST appear here and in app/build.gradle.kts.
+
 yt-dlp==2025.1.15
+
+# CA bundle. Python on Android has no system trust store.
+certifi
+
+# AES-128 HLS decryption (yt_dlp/aes.py imports Cryptodome when the key is encrypted).
+pycryptodomex
+
+# Deliberately NOT installed, with the consequence documented:
+#   requests/urllib3 -> yt-dlp falls back to urllib; fine for plain HTML/JSON/HLS.
+#   websockets       -> only needed for ws:// streams, which this app does not target.
+#   brotli           -> only affects Content-Encoding: br responses.
+#   mutagen          -> only used when embed-metadata style post-processing is requested.
