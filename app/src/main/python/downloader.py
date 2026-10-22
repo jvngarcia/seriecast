@@ -86,7 +86,9 @@ def _options(out_dir, out_name, referer, user_agent, cookie, max_height, logger)
         headers["Cookie"] = cookie
 
     if max_height:
-        fmt = "bestvideo[height<=%d]+bestaudio/best[height<=%d]/best" % (max_height, max_height)
+        # Prefer a single pre-muxed stream: there is no ffmpeg on the device, so "video+audio"
+        # cannot be merged and would fail with "ffmpeg not installed".
+        fmt = "best[height<=%d]/bestvideo[height<=%d]+bestaudio/best" % (max_height, max_height)
     else:
         fmt = "best[ext=mp4]/best"
 
@@ -117,10 +119,36 @@ def _options(out_dir, out_name, referer, user_agent, cookie, max_height, logger)
     return options
 
 
+def _dependency_status():
+    """Which optional runtime dependencies actually made it into the APK.
+
+    Chaquopy installs with --no-deps, so a missing package is a real possibility. Reporting it here
+    turns a silent runtime failure into something the diagnostics screen can show.
+    """
+    status = {}
+    for module, label in (
+        ("certifi", "certifi"),
+        ("Cryptodome", "pycryptodomex"),
+        ("mutagen", "mutagen"),
+        ("requests", "requests"),
+        ("websockets", "websockets"),
+    ):
+        try:
+            __import__(module)
+            status[label] = True
+        except Exception:
+            status[label] = False
+    return status
+
+
 def version():
     try:
         import yt_dlp
-        return _json({"ok": True, "version": yt_dlp.version.__version__})
+        return _json({
+            "ok": True,
+            "version": yt_dlp.version.__version__,
+            "deps": _dependency_status(),
+        })
     except Exception as exc:
         return _json({"ok": False, "error": "%s: %s" % (type(exc).__name__, exc)})
 

@@ -31,8 +31,15 @@ class YtDlpEngine(private val context: Context) : DownloadEngine {
         val module = module() ?: return@withContext "Python no disponible (${SerieCastApp.pythonError ?: "sin detalle"})"
         runCatching {
             val json = JSONObject(module.callAttr("version").toString())
-            if (json.optBoolean("ok")) "yt-dlp ${json.optString("version")}"
-            else "yt-dlp no instalado: ${json.optString("error")}"
+            if (!json.optBoolean("ok")) {
+                return@runCatching "yt-dlp no instalado: ${json.optString("error")}"
+            }
+            // Chaquopy installs with --no-deps, so a missing dependency is a real failure mode.
+            val missing = json.optJSONObject("deps")?.let { deps ->
+                deps.keys().asSequence().filterNot { deps.optBoolean(it) }.toList()
+            }.orEmpty()
+            val base = "yt-dlp ${json.optString("version")}"
+            if (missing.isEmpty()) base else "$base — faltan: ${missing.joinToString()}"
         }.getOrElse { "yt-dlp no consultable: ${it.message}" }
     }
 
