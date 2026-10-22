@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SerieCast</string>
+
+    <string name="tab_library">Videos</string>
+    <string name="tab_download">Descargar</string>
+    <string name="tab_guide">Ayuda</string>
+
+    <string name="server_start">Iniciar servidor DLNA</string>
+    <string name="server_stop">Detener servidor</string>
+    <string name="server_idle">Servidor detenido</string>
+    <string name="server_running">Servidor activo</string>
+
+    <string name="tv_instructions">En tu televisor, abre la sección DLNA/Red y busca el nombre de tu teléfono</string>
+
+    <string name="notification_channel_name">Servidor DLNA</string>
+    <string name="notification_title">SerieCast sirviendo %1$d videos</string>
+    <string name="notification_text">%1$s — abrí Red/DLNA en tu televisor</string>
+</resources>

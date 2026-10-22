@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cleartext is required because the UPnP description, SOAP control endpoints and media URLs are
+  plain HTTP by spec, and the self-test talks to 127.0.0.1 over HTTP.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

@@ -1,0 +1,7 @@
+# yt-dlp only. Everything else it needs is pulled transitively.
+#
+# Build risk to know about: recent yt-dlp versions depend on pycryptodomex, which has C extensions.
+# Chaquopy can build it when the NDK is installed. If the wheel build fails on your machine, either
+# install the NDK or drop the AES-128 HLS path with `--no-deps` and add the pure-Python deps your
+# target site actually needs. See docs/BUILD.md.
+yt-dlp==2025.1.15
