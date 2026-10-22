@@ -124,12 +124,7 @@ internal class SsdpResponder(
     }
 
     private fun answerSearch(s: MulticastSocket, searchTarget: String, address: InetAddress, port: Int) {
-        val replies = if (searchTarget.equals("ssdp:all", ignoreCase = true)) {
-            targets
-        } else {
-            targets.filter { it.equals(searchTarget, ignoreCase = true) }
-        }
-        for (target in replies) {
+        for (target in replyTargets(searchTarget)) {
             val payload = searchResponse(target)
             runCatching {
                 s.send(DatagramPacket(payload.toByteArray(Charsets.UTF_8), payload.toByteArray(Charsets.UTF_8).size, address, port))
@@ -137,7 +132,19 @@ internal class SsdpResponder(
         }
     }
 
-    private fun searchResponse(target: String): String = buildString {
+    /**
+     * Targets that must answer a given M-SEARCH `ST` value.
+     * Internal so the SSDP contract is unit-testable without binding a socket or joining a group.
+     */
+    internal fun replyTargets(searchTarget: String): List<String> =
+        if (searchTarget.equals("ssdp:all", ignoreCase = true)) {
+            targets
+        } else {
+            targets.filter { it.equals(searchTarget, ignoreCase = true) }
+        }
+
+    /** Response datagram for one search target. Internal for unit tests. */
+    internal fun searchResponse(target: String): String = buildString {
         append("HTTP/1.1 200 OK\r\n")
         append("CACHE-CONTROL: max-age=$MAX_AGE_SECONDS\r\n")
         append("DATE: ").append(httpDate()).append("\r\n")
