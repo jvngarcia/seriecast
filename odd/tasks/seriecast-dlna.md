@@ -175,3 +175,27 @@ modificados (`.gitignore`, `README.md`, `app/build.gradle.kts`, `SerieCastApp.kt
 `fix(download): prevent data loss in remux and make the APK runnable`. El AVD `seriecast29` sigue
 vivo con `wm density` en 100 (revertir con `adb shell wm density reset`; apagar con `adb emu kill`).
 Lo único **no verificado** en todo el proyecto: que un televisor físico descubra el teléfono por SSDP.
+
+**L7 (cierre de sesión) — el trabajo quedó commiteado, no pusheado.** 9 commits sobre
+`feature/agents-md-gitflow` (desde `8a11d34`), árbol limpio, tests en el mismo commit que el
+comportamiento que cubren:
+
+| hash | mensaje |
+|---|---|
+| `36e25d8` | docs: add AGENTS.md with mandatory git flow rules |
+| `bbf8737` | build: generate the gradle wrapper and disable parallel execution |
+| `8ff7b4d` | build(chaquopy): configure the extension dsl and bundle yt-dlp dependencies |
+| `1ca0990` | fix(dlna): write the EXT header with its colon and expose ssdp internals for tests |
+| `fb0db76` | fix(download): never remux onto the file being read |
+| `b8722ad` | fix(python): report missing dependencies and avoid unmergeable formats |
+| `8f4079d` | fix(app): stop a diagnostics line from disabling python |
+| `b8decb4` | docs: record the verified runtime state and the defects found |
+| `630f1bb` | chore(verification): preserve the adb and uiautomator harness |
+
+La rama **no tiene push** todavía: falta `git push -u origin feature/agents-md-gitflow` y el PR
+contra `develop` (nunca contra `main`, ver `AGENTS.md`). Su nombre quedó corto para el contenido real
+—lleva build y verificación además de `AGENTS.md`—; si se quiere exactitud,
+`git branch -m feature/verification-and-runtime-fixes` antes del push.
+
+Pendiente único del proyecto: instalar el APK en el Note 8 y confirmar que el televisor descubre el
+teléfono (bloqueante WSL2 en L5; sonda `M-SEARCH` en `docs/TV-TROUBLESHOOTING.md` §2).
