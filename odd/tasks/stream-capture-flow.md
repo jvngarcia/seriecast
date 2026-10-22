@@ -23,10 +23,10 @@ y deja de exigir una extensión al final del path para clasificar un stream.
 
 | ID | Spec | Qué hace | Ruta | Commit |
 |---|---|---|---|---|
-| T1 | S1 | Pantalla de captura a tamaño completo; `DownloadScreen` deja de hospedar el `WebView`. Lista de capturas en panel inferior y `Usar` vuelve al formulario | inline | — |
-| T2 | S3 | `classify()` acepta pistas de HLS/DASH/progresivo cuando el path no trae extensión, sin falsos positivos de assets | test-first | — |
-| T3 | S2 | `StreamSniffer.offer` recibe el `Referer` real del request, lo persiste y `Usar` lo precarga en el formulario | test-first | — |
-| T4 | S1-S3 | Docs y textos de ayuda (README `Uso`, `GuideScreen`), build y verificación en el dispositivo | inline | — |
+| T1 | S1 | Pantalla de captura a tamaño completo; `DownloadScreen` deja de hospedar el `WebView`. Lista de capturas en panel inferior y `Usar` vuelve al formulario | inline | `e58c303` |
+| T2 | S3 | `classify()` acepta pistas de HLS/DASH/progresivo cuando el path no trae extensión, sin falsos positivos de assets | test-first | `b58a459` |
+| T3 | S2 | `StreamSniffer.offer` recibe el `Referer` real del request, lo persiste y `Usar` lo precarga en el formulario | test-first | `456683c` |
+| T4 | S1-S3 | Docs y textos de ayuda (README `Uso`), build y verificación en el dispositivo | inline | este commit |
 
 ## Log
 
@@ -40,3 +40,17 @@ quedaron declarados en el informe de diagnóstico sobre `tudorama.com`:
 1. WebView de 420dp dentro de un `Column` con scroll.
 2. `Referer` del request de media nunca capturado.
 3. `classify()` sólo mira la extensión al final del path.
+
+**L3 (evidencia de cierre):**
+
+- Ciclo test-first observado: T2 arrancó en rojo con `StreamSnifferTest` (2 tests fallando sobre 5)
+  y T3 en rojo por API inexistente (`No parameter with name 'referer'`), y después verde.
+- Suite completa: **41 tests, 0 fallos** (`:app:testDebugUnitTest`).
+- Verificación en el Note 8 (`:app:assembleDebug` + `adb install -r`), contra `tudorama.com`,
+  servidor `esp earnvids`: la captura ocupa la pantalla, la franja inferior mostró
+  `HLS · callistanise.com / master.m3u8 / con Referer del reproductor` y `Usar` cargó
+  `https://callistanise.com/stream/…/master.m3u8` con
+  `Referer: https://callistanise.com/embed/v7pml7nsxiap`.
+- Defecto encontrado durante esa verificación y corregido antes del commit: la tarjeta de la franja
+  usaba `fillMaxWidth(0.82f)` dentro de un `LazyRow` y colapsaba al ancho del botón, dejando el
+  candidato sin texto.
