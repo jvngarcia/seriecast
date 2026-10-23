@@ -36,6 +36,8 @@ import com.seriecast.app.R
 fun SerieCastRoot(viewModel: AppViewModel) {
     var tab by rememberSaveable { mutableStateOf(0) }
     var form by remember { mutableStateOf(AppViewModel.DownloadForm()) }
+    var captureOpen by rememberSaveable { mutableStateOf(false) }
+    var captureUrl by rememberSaveable { mutableStateOf("") }
 
     val message by viewModel.message.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -49,6 +51,21 @@ fun SerieCastRoot(viewModel: AppViewModel) {
     }
 
     RequestNotificationPermission()
+
+    if (captureOpen) {
+        CaptureScreen(
+            sniffer = viewModel.sniffer,
+            initialUrl = captureUrl,
+            onClose = { captureOpen = false },
+            onUse = { stream ->
+                form = viewModel.consumeSnifferCandidate(stream)
+                viewModel.clearProbe()
+                captureOpen = false
+                tab = 1
+            },
+        )
+        return
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -82,6 +99,9 @@ fun SerieCastRoot(viewModel: AppViewModel) {
                     viewModel = viewModel,
                     form = form,
                     onFormChange = { form = it },
+                    captureUrl = captureUrl,
+                    onCaptureUrlChange = { captureUrl = it },
+                    onOpenCapture = { captureOpen = true },
                 )
                 else -> GuideScreen(viewModel = viewModel)
             }

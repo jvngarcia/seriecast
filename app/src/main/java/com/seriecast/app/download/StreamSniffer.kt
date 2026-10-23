@@ -14,12 +14,22 @@ data class SniffedStream(
     val pageUrl: String,
     val cookie: String?,
     val seenAtMillis: Long,
+    /** The `Referer` the page sent with the media request, when the WebView exposes it. */
+    val referer: String? = null,
 ) {
     val displayHost: String
         get() = runCatching { java.net.URI(url).host ?: url }.getOrDefault(url)
 
     val displayTail: String
         get() = url.substringAfterLast('/').take(64)
+
+    /**
+     * Referer to hand to the downloader: the embed page that actually requested the media is more
+     * accurate than the aggregator page the user opened, but the latter is better than nothing.
+     */
+    val effectiveReferer: String?
+        get() = referer?.trim()?.takeIf { it.isNotEmpty() }
+            ?: pageUrl.trim().takeIf { it.isNotEmpty() }
 }
 
 /**
@@ -45,7 +55,12 @@ class StreamSniffer {
     }
 
     /** Feeds one observed URL; non-media URLs are ignored. */
-    fun offer(rawUrl: String, cookie: String?) {
+    fun offer(
+        rawUrl: String,
+        cookie: String?,
+        referer: String? = null,
+        pageUrl: String = currentPageUrl,
+    ) {
         val url = rawUrl.trim()
         if (url.isEmpty()) return
         // blob:/data: cannot be handed to yt-dlp: they only exist inside this WebView instance.
@@ -53,7 +68,14 @@ class StreamSniffer {
         val kind = classify(url) ?: return
         if (seen.contains(url)) return
         seen.add(url)
-        val entry = SniffedStream(url, kind, currentPageUrl, cookie, System.currentTimeMillis())
+        val entry = SniffedStream(
+            url = url,
+            kind = kind,
+            pageUrl = pageUrl,
+            cookie = cookie,
+            seenAtMillis = System.currentTimeMillis(),
+            referer = referer?.trim()?.takeIf { it.isNotEmpty() },
+        )
         internal.value = (listOf(entry) + internal.value).take(MAX_CANDIDATES)
     }
 
@@ -65,16 +87,35 @@ class StreamSniffer {
     private fun classify(url: String): StreamKind? {
         val lower = url.lowercase(Locale.ROOT)
         val path = lower.substringBefore('?').substringBefore('#')
-        return when {
-            path.endsWith(".m3u8") || path.contains("manifest.m3u8") -> StreamKind.HLS
-            path.endsWith(".mpd") -> StreamKind.DASH
+        when {
+            path.endsWith(".m3u8") || path.contains("manifest.m3u8") -> return StreamKind.HLS
+            path.endsWith(".mpd") -> return StreamKind.DASH
             path.endsWith(".mp4") || path.endsWith(".m4v") || path.endsWith(".mkv") ||
-                path.endsWith(".webm") || path.endsWith(".mov") -> StreamKind.PROGRESSIVE
-            else -> null
+                path.endsWith(".webm") || path.endsWith(".mov") -> return StreamKind.PROGRESSIVE
         }
+        // An asset is never a stream, even when its name contains "hls" or "playlist".
+        if (ASSET_SUFFIXES.any { path.endsWith(it) }) return null
+        // Plenty of CDNs hide the extension behind a route or a signed query
+        // (``/playlist?token=…``, ``/hls/<id>/720``). Fall back to the vocabulary of the URL.
+        if (DASH_HINTS.any { lower.contains(it) }) return StreamKind.DASH
+        if (HLS_HINTS.any { lower.contains(it) }) return StreamKind.HLS
+        return null
     }
 
     private companion object {
         const val MAX_CANDIDATES = 12
+
+        /** Request targets that can never be a video source; checked before the hint words. */
+        val ASSET_SUFFIXES = listOf(
+            ".js", ".mjs", ".css", ".map", ".json", ".html", ".htm", ".php", ".txt", ".xml",
+            ".vtt", ".srt", ".svg", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico",
+            ".woff", ".woff2", ".ttf", ".otf",
+            // Segments: only the playlist that lists them is downloadable by yt-dlp.
+            ".ts", ".m4s",
+        )
+
+        val HLS_HINTS = listOf("m3u8", "/hls/", "/hls?", "hls_", "hls=", "manifest", "playlist")
+
+        val DASH_HINTS = listOf(".mpd", "/mpd/", "/mpd?", "dash=")
     }
 }

@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -21,10 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
@@ -38,16 +34,15 @@ fun DownloadScreen(
     viewModel: AppViewModel,
     form: AppViewModel.DownloadForm,
     onFormChange: (AppViewModel.DownloadForm) -> Unit,
+    captureUrl: String,
+    onCaptureUrlChange: (String) -> Unit,
+    onOpenCapture: () -> Unit,
 ) {
     val job by viewModel.job.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
     val probe by viewModel.probe.collectAsStateWithLifecycle()
     val engineVersion by viewModel.engineVersion.collectAsStateWithLifecycle()
     val candidates by viewModel.sniffer.candidates.collectAsStateWithLifecycle()
-
-    var browserUrl by rememberSaveable { mutableStateOf("") }
-    var loadedUrl by rememberSaveable { mutableStateOf<String?>(null) }
-    var showBrowser by rememberSaveable { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -63,71 +58,34 @@ fun DownloadScreen(
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("1. Capturar la URL del stream", fontWeight = FontWeight.SemiBold)
                 Text(
-                    "Abrí la página del episodio dentro de la app, tocá play y esperá a que aparezca " +
-                        "el .m3u8 abajo. Si la página usa un reproductor con blob, los segmentos igual " +
-                        "se ven porque las peticiones pasan por el WebView.",
+                    "Abrí la página del episodio en la pantalla de captura, tocá el servidor y después " +
+                        "play. La captura ocupa toda la pantalla para que el reproductor se pueda usar; " +
+                        "volvés acá con el botón Usar.",
                     style = MaterialTheme.typography.bodySmall,
                 )
                 OutlinedTextField(
-                    value = browserUrl,
-                    onValueChange = { browserUrl = it },
+                    value = captureUrl,
+                    onValueChange = onCaptureUrlChange,
                     label = { Text("Dirección de la página") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = {
-                            showBrowser = true
-                            loadedUrl = browserUrl.trim().takeIf { it.isNotBlank() }
-                                ?: "https://www.google.com"
-                        },
-                    ) { Text(if (showBrowser) "Recargar" else "Abrir navegador") }
-                    OutlinedButton(onClick = viewModel.sniffer::clear) { Text("Limpiar capturas") }
-                }
-
-                if (showBrowser) {
-                    SnifferWebView(
-                        sniffer = viewModel.sniffer,
-                        loadUrl = loadedUrl,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(420.dp),
-                    )
+                    Button(onClick = onOpenCapture) { Text("Abrir navegador") }
+                    if (candidates.isNotEmpty()) {
+                        OutlinedButton(onClick = onOpenCapture) {
+                            Text("Ver capturas (${candidates.size})")
+                        }
+                    }
                 }
 
                 if (candidates.isNotEmpty()) {
-                    Text("Streams detectados (${candidates.size})", fontWeight = FontWeight.SemiBold)
-                    candidates.forEach { stream ->
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text("${stream.kind} · ${stream.displayHost}", style = MaterialTheme.typography.bodyMedium)
-                                    Text(
-                                        stream.displayTail,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontFamily = FontFamily.Monospace,
-                                        maxLines = 2,
-                                    )
-                                }
-                                TextButton(
-                                    onClick = {
-                                        onFormChange(viewModel.consumeSnifferCandidate(stream))
-                                        showBrowser = false
-                                        viewModel.clearProbe()
-                                    },
-                                ) { Text("Usar") }
-                            }
-                        }
-                    }
+                    val latest = candidates.first()
+                    Text(
+                        "Último detectado: ${latest.kind} · ${latest.displayHost}",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                    )
                 }
             }
         }
