@@ -43,10 +43,11 @@ no pasa por el guard.
 
 | ID | Spec | Qué hace | Ruta | Commit |
 |---|---|---|---|---|
-| T1 | S1-S2 | `NavigationGuard`: decisión pura y testeable (hosts confiables, dominio registrable, popups, historial de bloqueos) con tests JVM | test-first | — |
-| T2 | S1-S2 | Cableado en `SnifferWebView` (`shouldOverrideUrlLoading` sólo frame principal, `onCreateWindow` denegado), `StreamSniffer.offer` devuelve el candidato aceptado | inline | — |
-| T3 | S3 | Contador y último host bloqueado en `CaptureScreen` | inline | — |
-| T4 | S1-S4 | Docs (README) + verificación end-to-end en emulador API 29 con página de prueba local | inline | — |
+| T1 | S1-S2 | `NavigationGuard`: decisión pura y testeable (hosts confiables, dominio registrable, popups, historial de bloqueos) con 12 tests JVM | test-first | `9ed543d` |
+| T2 | S1-S2 | Cableado en `SnifferWebView` (`shouldOverrideUrlLoading` sólo frame principal, `onCreateWindow` denegado), `StreamSniffer.offer` devuelve el candidato aceptado | inline | `9ed543d` |
+| T3 | S3 | Contador y último host bloqueado en `CaptureScreen` | inline | `9ed543d` |
+| T4 | S1-S4 | Arnés `scripts/verification/seriecast-popup-guard-test.sh` | inline | `d45e58e` |
+| T5 | S1-S4 | Docs (README, README del arnés) y cierre de la feature | inline | `docs` (este PR) |
 
 ## Log
 
@@ -57,3 +58,43 @@ no pasa por el guard.
 **L2 (evidencia previa, no re-medida en esta rama):** `window.open('…','_blank')` y un
 `<a target="_blank">` clickeado por script devuelven `null` y no crean target con el default
 (`supportMultipleWindows = false`). El daño real medido es la navegación del frame principal.
+
+**L3 (evidencia del ciclo test-first):**
+
+- RED: `NavigationGuardTest` no compilaba (`Unresolved reference 'NavigationGuard'`/`'BlockedKind'`).
+- Un test falló sobre la implementación y expuso una decisión, no un bug: con `clear()` olvidando
+  todo, el guard quedaba en modo "permitir todo" con la página todavía en pantalla. Se ajustó el
+  contrato (`clear()` olvida los hosts de streams y los contadores, **no** la página cargada), el
+  guard y el test.
+- GREEN: 12/12 en `NavigationGuardTest`. Suite completa: **53 tests, 0 fallos**; `:app:assembleDebug`
+  en verde.
+
+**L4 (verificación en emulador API 29, AOSP, salida literal del arnés):**
+
+```
+3. pagina lista tras 2s, enlace en (160 132)
+   --- textos del guard tras el click:
+     text="Bloqueado: 1 ventana(s) · 0 redirección(es)"
+4. redirect detectado tras 3s
+     text="Bloqueado: 1 ventana(s) · 1 redirección(es) · último: ads.example.net"
+   foco actual:  mCurrentFocus=Window{74543b7 u0 com.seriecast.app/com.seriecast.app.ui.MainActivity}
+6. OK: el click en target=_blank no abrio ventana y quedo contado
+   OK: la redireccion a otro dominio fue rechazada y contada
+   OK: el ultimo bloqueo es el dominio del anuncio
+   OK: la app sigue al frente (no se abrio otra ventana)
+```
+
+Capturas revisadas: `1.png` con la página intacta y el contador de ventanas, `3.png` con `CADENA OK`
+y `1 ventana(s) · 1 redirección(es) · último: ads.example.net`.
+
+**L5 (decisiones y límites declarados):**
+
+- `setSupportMultipleWindows(true)` se activa **sólo** para que el pedido de ventana llegue a
+  `onCreateWindow`; ese callback devuelve siempre `false` y nunca entrega un `WebView` de transporte,
+  así que no se crea ninguna ventana. Con el default no había forma de contar el bloqueo.
+- Un `window.open` sin gesto del usuario ni siquiera llega al callback (lo corta el popup blocker de
+  Chromium) y no se cuenta: los popups de publicidad reales nacen de un click, y así se prueba.
+- Un popup bloqueado no expone su URL, porque `onCreateWindow` no la entrega: el contador dice
+  cuántas ventanas se bloquearon, y el "último host" aparece cuando el bloqueo es una redirección.
+- Las navegaciones de subframes no se filtran a propósito: los reproductores y sus overlays navegan
+  sus propios iframes todo el tiempo y bloquearlos rompe el play sin frenar el anuncio.

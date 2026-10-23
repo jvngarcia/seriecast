@@ -87,8 +87,10 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
    navegador**: la captura ocupa toda la pantalla, así que el reproductor se puede usar. Dentro de
    la página tocá el servidor y después play; cuando el stream aparezca en la franja de abajo,
    tocá **Usar** y volvés al formulario con la URL, el Referer del reproductor y la cookie ya
-   cargados. También podés pegar la URL del `.m3u8` a mano. Completá serie/temporada/episodio y
-   descargá.
+   cargados. La captura bloquea las ventanas emergentes y las redirecciones a otro dominio de los
+   anuncios, y muestra cuántas bloqueó. Si el bloqueo se comió un servidor que sí querías, pegá su
+   dirección en la barra de arriba y tocá **Ir**. También podés pegar la URL del `.m3u8` a mano.
+   Completá serie/temporada/episodio y descargá.
 3. En el televisor: **Fuente / Red → DLNA** y buscá `SerieCast (<modelo del teléfono>)`.
    La frase textual que muestra la app es: *"En tu televisor, abre la sección DLNA/Red y busca el
    nombre de tu teléfono"*.
@@ -106,6 +108,9 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
   segmentos; nunca la URL del "video completo", que no existe.
 - **AP isolation**: es la causa #1 de "el televisor no lo ve"; no se puede arreglar desde la app.
   Ver [`docs/TV-TROUBLESHOOTING.md`](docs/TV-TROUBLESHOOTING.md).
+- **Popups bloqueados sin destino**: el `WebView` no entrega la URL del `onCreateWindow`, así que el
+  contador dice cuántas ventanas se bloquearon pero no a dónde apuntaban. Las redirecciones sí
+  muestran el host.
 
 ## Estado de verificación
 
@@ -115,13 +120,14 @@ Verificado en un emulador **Android 10 (API 29), imagen AOSP sin Google Play Ser
 | Qué | Estado | Evidencia |
 |---|---|---|
 | Compilación | ✅ | `:app:assembleDebug` verde; APK de 66.383.143 bytes con `libpython3.11.so` en `arm64-v8a`, `armeabi-v7a` y `x86_64` |
-| Tests JVM | ✅ | **33/33**, 0 fallos — SSDP, SOAP `Browse`, DIDL, `Range` 206/416 sobre HTTP real, detección de contenedor y guardas del remux |
+| Tests JVM | ✅ | **53/53**, 0 fallos — SSDP, SOAP `Browse`, DIDL, `Range` 206/416 sobre HTTP real, detección de contenedor, guardas del remux y el guard de publicidad (`NavigationGuard`) |
 | Python embebido | ✅ | `Chaquopy started: 3.11.10`; la UI muestra `yt-dlp 2025.01.15` leído del APK; `yt_dlp/`, `certifi/`, `Cryptodome/` dentro de `requirements-common.imy` |
 | Servidor DLNA | ✅ | `description.xml` 200 con `MediaServer:1` y header `EXT:`; `Browse` 200 con DIDL; `isForeground=true foregroundId=4242` |
 | Descarga real desde la UI | ✅ | `Listo: sample 5s.mp4`, 2.848.208 bytes, magic `ftypisom` |
 | Remux TS → MP4 | ✅ | HLS real: TS de 39.392.016 bytes (`0x47`) → MP4 de 36.083.089 bytes (`ftypmp42`), duración `00:10:34.600` leída por `MediaMetadataRetriever` |
 | Servir a un televisor | ✅ | `GET` 200 con el tamaño exacto; `Range 0-99`, `1000-`, sufijo `-16` y `1000000-1000099` → 206 con `Content-Range` correcto; `416` con `bytes */N`; `HEAD`; `404` |
 | Sniffer de WebView (§S4) | ✅ | `shouldInterceptRequest` capturó el `.m3u8`, apareció como `HLS · test-streams.mux.dev`, y `Usar` copió URL y Referer al formulario. Verificado de nuevo en el Note 8 contra un agregador real (`tudorama.com`, servidor earnvids): captura a pantalla completa, `HLS · callistanise.com · master.m3u8` y `Usar` cargó `Referer: https://callistanise.com/embed/v7pml7nsxiap` (el reproductor, no la página del agregador) |
+| Guard de publicidad en la captura | ✅ | En el emulador API 29, con una página servida desde el host: un `target="_blank"` clickeado no abrió ventana y quedó contado (`Bloqueado: 1 ventana(s)`), `location.href` a otro dominio fue rechazado (`1 redirección(es) · último: ads.example.net`) con la app todavía al frente, y una navegación del mismo host siguió funcionando (`CADENA OK`). Arnés: `scripts/verification/seriecast-popup-guard-test.sh` |
 | **Descubrimiento por un televisor físico** | ❌ **sin verificar** | requiere el TV en la misma LAN. Depende del router y del firmware; usar el autodiagnóstico y la sonda `M-SEARCH` de `docs/TV-TROUBLESHOOTING.md` |
 
 Cadena de build usada: JDK 17.0.20.1 + Gradle 8.9 + Android SDK 35 + CPython 3.11.17.
