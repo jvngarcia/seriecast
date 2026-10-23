@@ -19,6 +19,22 @@ y deja de exigir una extensión al final del path para clasificar un stream.
 
 > `classify()` solo acepta extensión al final del path: frágil para CDNs con `/playlist?token=`.
 
+**S4 — Bloquear ventanas emergentes (pendiente, no implementado en esta rama):**
+
+> como puedo probar en el tv?, también anota como un pendiente o posible feature el bloquear ventanas emergentes
+
+Alcance medido antes de anotarlo (emulador API 29, `:app:assembleDebug`, CDP sobre el `WebView` de
+la app):
+
+- `window.open('…','_blank')` y un `<a target="_blank">` clickeado por script **no** abren nada:
+  devuelven `null`, no crean target y la página no cambia (`Page.windowOpen` se emite y se descarta).
+  Es el comportamiento por defecto (sin `WebChromeClient`, `supportMultipleWindows=false`).
+- Lo que **sí** rompe la captura es una navegación del frame principal: `location.href='…'`
+  reemplaza el reproductor porque `SnifferWebView` no implementa `shouldOverrideUrlLoading`.
+- Propuesta: guard de navegación que sólo permita la cadena del reproductor (mismo host de la
+  página cargada más hosts de media/embed ya vistos) y descarte el resto, con contador de bloqueos
+  visible en la pantalla de captura.
+
 ## Tasks
 
 | ID | Spec | Qué hace | Ruta | Commit |
@@ -27,6 +43,7 @@ y deja de exigir una extensión al final del path para clasificar un stream.
 | T2 | S3 | `classify()` acepta pistas de HLS/DASH/progresivo cuando el path no trae extensión, sin falsos positivos de assets | test-first | `b58a459` |
 | T3 | S2 | `StreamSniffer.offer` recibe el `Referer` real del request, lo persiste y `Usar` lo precarga en el formulario | test-first | `456683c` |
 | T4 | S1-S3 | Docs y textos de ayuda (README `Uso`), build y verificación en el dispositivo | inline | este commit |
+| T5 | S4 | Bloqueo de ventanas emergentes y de navegaciones publicitarias en la captura | pendiente | — |
 
 ## Log
 
@@ -54,3 +71,9 @@ quedaron declarados en el informe de diagnóstico sobre `tudorama.com`:
 - Defecto encontrado durante esa verificación y corregido antes del commit: la tarjeta de la franja
   usaba `fillMaxWidth(0.82f)` dentro de un `LazyRow` y colapsaba al ancho del botón, dejando el
   candidato sin texto.
+
+**L4 (pedido del usuario, verbatim):**
+
+> como puedo probar en el tv?, también anota como un pendiente o posible feature el bloquear ventanas emergentes
+
+Se anota como S4/T5 (pendiente). No se implementa en esta rama: el pedido fue registrarlo.
