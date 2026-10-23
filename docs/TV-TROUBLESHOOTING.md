@@ -35,10 +35,11 @@ El televisor manda `M-SEARCH` a `239.255.255.250:1900` y espera una respuesta **
 `LOCATION`. Una sonda desde la PC:
 
 ```python
-# msearch.py — python3 msearch.py 192.168.1.105
+# msearch.py — python3 msearch.py                → multicast a toda la LAN
+#              python3 msearch.py 192.168.1.105  → unicast directo al teléfono
 import socket, sys
 
-target_ip = sys.argv[1] if len(sys.argv) > 1 else "239.255.255.250"
+target = sys.argv[1] if len(sys.argv) > 1 else "239.255.255.250"
 msg = (
     "M-SEARCH * HTTP/1.1\r\n"
     "HOST: 239.255.255.250:1900\r\n"
@@ -51,7 +52,7 @@ msg = (
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 s.settimeout(4)
-s.sendto(msg, ("239.255.255.250", 1900))
+s.sendto(msg, (target, 1900))
 try:
     while True:
         data, addr = s.recvfrom(2048)
@@ -68,6 +69,11 @@ Interpretación:
 | Respuesta con `LOCATION: http://IP:8080/description.xml` | SSDP correcto | El problema está en el televisor (paso 4) |
 | Sin respuesta, pero `curl` del paso 1 funcionaba | El teléfono no está recibiendo multicast | Aislamiento de AP, firewall del router o red de invitados (paso 3) |
 | Sin respuesta y `curl` también fallaba | El servidor no está corriendo | Volver al paso 1 |
+
+Si corrés la sonda desde WSL, un contenedor o cualquier equipo detrás de NAT, el multicast al grupo
+no va a salir: pasale la IP del teléfono como argumento y la sonda manda el `M-SEARCH` por unicast
+directo a `IP:1900`. La app responde igual, y así el resultado sólo depende de que el puerto 1900
+llegue al teléfono.
 
 La app implementa lo mismo internamente: **Ayuda → Ejecutar autodiagnóstico** verifica HTTP y que el
 socket SSDP haya quedado escuchando en `239.255.255.250:1900`.
