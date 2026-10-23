@@ -55,6 +55,7 @@ fun SerieCastRoot(viewModel: AppViewModel) {
     if (captureOpen) {
         CaptureScreen(
             sniffer = viewModel.sniffer,
+            guard = viewModel.navigationGuard,
             initialUrl = captureUrl,
             onClose = { captureOpen = false },
             onUse = { stream ->

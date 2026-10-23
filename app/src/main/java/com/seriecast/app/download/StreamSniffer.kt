@@ -54,19 +54,22 @@ class StreamSniffer {
         currentPageUrl = url
     }
 
-    /** Feeds one observed URL; non-media URLs are ignored. */
+    /**
+     * Feeds one observed URL; non-media URLs are ignored. Returns the accepted candidate so the
+     * caller can trust exactly the hosts that served media, never the ad CDNs the page also loads.
+     */
     fun offer(
         rawUrl: String,
         cookie: String?,
         referer: String? = null,
         pageUrl: String = currentPageUrl,
-    ) {
+    ): SniffedStream? {
         val url = rawUrl.trim()
-        if (url.isEmpty()) return
+        if (url.isEmpty()) return null
         // blob:/data: cannot be handed to yt-dlp: they only exist inside this WebView instance.
-        if (url.startsWith("blob:", true) || url.startsWith("data:", true)) return
-        val kind = classify(url) ?: return
-        if (seen.contains(url)) return
+        if (url.startsWith("blob:", true) || url.startsWith("data:", true)) return null
+        val kind = classify(url) ?: return null
+        if (seen.contains(url)) return null
         seen.add(url)
         val entry = SniffedStream(
             url = url,
@@ -77,6 +80,7 @@ class StreamSniffer {
             referer = referer?.trim()?.takeIf { it.isNotEmpty() },
         )
         internal.value = (listOf(entry) + internal.value).take(MAX_CANDIDATES)
+        return entry
     }
 
     fun clear() {
