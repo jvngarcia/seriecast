@@ -114,7 +114,7 @@ correcto (conservó el original), pero el objetivo de la feature no se cumplió.
 | T2 | S2 | Progreso del remux con porcentaje, bytes, velocidad y restante estimado cableado al `Job.Running` | test-first | `4c04636` |
 | T3 | S3 | Cancelación efectiva del remux, con borrado del temporal | inline | `4c04636` |
 | T4 | S4 | `.remux.mp4` como temporal en `MediaLibrary.isTemporary` | test-first | `9a2c795` |
-| T5 | S1-S6 | Docs y verificación en el dispositivo con un episodio real | inline | pendiente |
+| T5 | S1-S6 | Docs y verificación en el dispositivo con un episodio real | inline | verificado, ver tabla de T5 |
 
 **T0 primero**: hoy el fallo sólo deja un mensaje sin stack, y el ring de logcat se lo come. Antes de
 tocar el remux hay que hacer `adb logcat -G 4M` (o `-s Mp4Remuxer:*` con el buffer agrandado) y
@@ -145,6 +145,26 @@ excepción y las primeras dos o tres líneas del stack, no sólo `IllegalArgumen
 4. Cancelar durante el remux corta en menos de ~2 s y no queda `.remux.mp4`.
 5. Matar la app a mitad del remux y reabrirla: no aparece ningún episodio nuevo en la biblioteca.
 6. `:app:testDebugUnitTest` y `:app:assembleDebug` en verde, con los tests previos intactos.
+
+## Verificación en el dispositivo (T5)
+
+Infinix X692, API 29, APK de debug instalado con `adb install -r`. Episodio real de prueba: stream HLS
+público `x36xhzz` (10:34, 1080p) descargado por la app, que yt-dlp deja como **MPEG-TS de
+502.204.400 B dentro de un nombre `.mp4`** — exactamente el caso que rompía el remux.
+
+| # | Criterio | Resultado |
+|---|---|---|
+| 1 | Termina en un MP4 que empieza con `ftyp` | ✅ 486.850.800 B, primeros bytes `00 00 00 18 66 74 79 70 6d 70 34 32` |
+| 2 | La mitad del tiempo o mejor | ✅ **66 s** para 502 MB, 6,5 MB/s medidos en vivo, contra los ~50 KB/s del temporal en el caso real |
+| 3 | El porcentaje avanza durante el remux | ✅ captura: `Ajustando el contenedor a MP4… 85% — 407.8 MB de 478.9 MB (6.5 MB/s) · menos de 1 min` |
+| 4 | Cancelar corta en segundos y no deja `.remux.mp4` | ✅ toque en Cancelar → 5 s después sólo queda el fuente de 502.204.400 B |
+| 5 | Un remux interrumpido no aparece como episodio | ✅ con un `zz temporal.remux.mp4` de 512 KB en la carpeta, la biblioteca lista **1** video |
+| 6 | Tests y build en verde, tests previos intactos | ✅ 95 tests, 0 fallos (75 previos + 20 nuevos); `:app:assembleDebug` en verde |
+
+**Pendiente, declarado:** el episodio real de 1,24 GB (`doctora x - S01E05`) **no** se volvió a
+descargar —la URL la tiene el usuario—, así que el número de ese caso es extrapolación y no medición:
+1,1 GB a 6,5 MB/s ≈ 3 minutos, contra los más de 16 minutos que terminaban en error. Se cierra con una
+descarga real de ese mismo stream.
 
 ## Fuera de alcance (declarado)
 
@@ -212,6 +232,13 @@ primeros bytes `47 40 00 10` (MPEG-TS), aviso `No se pudo remuxear a MP4: Illega
 y sin stack trace porque el ring de logcat es de 256 KiB y ya había rotado. La prioridad cambió:
 S6 (que complete) pesa más que S1 (que sea rápido), y T1 puede resolver las dos si la hipótesis 1 es
 la correcta. Queda anotado como pendiente de comprobar, no como hecho.
+
+**L9 (verificación en el dispositivo y un ajuste de UX que salió de ella):**
+
+- La verificación de T5 pasó salvo el episodio real de 1,24 GB, que no se volvió a descargar. Detalle
+  y evidencia en la tabla de T5.
+- Al verificar se vio que el mensaje de cancelación se mostraba en un `Snackbar` de 4 s: ilegible para
+  un mensaje que dice qué quedó en disco. Pasa a `SnackbarDuration.Long`.
 
 **L8 (decisiones de implementación de esta sesión):**
 
