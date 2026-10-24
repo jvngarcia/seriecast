@@ -18,6 +18,7 @@ import com.seriecast.app.download.NavigationGuard
 import com.seriecast.app.download.Omnibox
 import com.seriecast.app.download.ProbeOutcome
 import com.seriecast.app.download.StreamSniffer
+import com.seriecast.app.download.WebUserAgent
 import com.seriecast.app.download.YtDlpEngine
 import com.seriecast.app.service.DlnaController
 import com.seriecast.app.service.DlnaService
@@ -158,9 +159,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _busy.value = true
             _probe.value = null
+            // The CDN that served the page may answer 404 to anything that is not a mobile
+            // browser, so the engine must present the same client the WebView presented.
             val auth = AuthContext(
                 referer = form.referer.ifBlank { null },
                 cookie = form.cookie.ifBlank { null },
+                userAgent = WebUserAgent.of(app),
             )
             _probe.value = engine.probe(url, auth)
             _busy.value = false
@@ -202,6 +206,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val auth = AuthContext(
                 referer = form.referer.ifBlank { null },
                 cookie = form.cookie.ifBlank { null },
+                userAgent = WebUserAgent.of(app),
             )
             val maxHeight = form.maxHeight.trim().toIntOrNull() ?: 0
 

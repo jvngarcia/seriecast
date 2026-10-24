@@ -107,6 +107,10 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
   pierde (los `.part` se limpian al siguiente arranque).
 - **Sitios con DRM (Widevine)**: imposible. Ni yt-dlp ni esta app pueden descargar contenido
   protegido.
+- **User-Agent del descargador**: la app le manda a yt-dlp el mismo User-Agent del navegador
+  integrado. No es cosmético: algunos CDN responden `404` a cualquier UA que no sea de navegador
+  móvil (medido en SprintCDN: el mismo `.m3u8` firmado da `200` con UA de Android y `404` con el UA
+  de escritorio que yt-dlp usa por defecto).
 - **Captura de segmentos**: si el reproductor usa MSE puro con `blob:`, sólo se ven los `.m3u8` y
   segmentos; nunca la URL del "video completo", que no existe.
 - **AP isolation**: es la causa #1 de "el televisor no lo ve"; no se puede arreglar desde la app.
