@@ -39,26 +39,12 @@ class MediaLibrary(private val context: Context) {
 
     fun deleteOrphanTemporaries() {
         directory().listFiles()?.forEach { file ->
-            if (file.isFile && isTemporary(file.name)) runCatching { file.delete() }
+            if (file.isFile && MediaFiles.isTemporary(file.name)) runCatching { file.delete() }
         }
     }
 
-    private fun isPlayable(file: File): Boolean {
-        if (isTemporary(file.name)) return false
-        val ext = file.extension.lowercase(Locale.ROOT)
-        return ext in PLAYABLE_EXTENSIONS
-    }
-
-    private fun isTemporary(name: String): Boolean {
-        val lower = name.lowercase(Locale.ROOT)
-        return lower.endsWith(".part") || lower.endsWith(".ytdl") || lower.endsWith(".tmp") ||
-            lower.contains(".part-frag") || lower.endsWith(".download")
-    }
+    private fun isPlayable(file: File): Boolean = MediaFiles.isPlayable(file.name)
 
     private fun titleOf(file: File): String =
         file.nameWithoutExtension.replace('_', ' ').trim().ifBlank { file.name }
-
-    private companion object {
-        val PLAYABLE_EXTENSIONS = setOf("mp4", "m4v", "mkv", "ts", "m2ts", "mts", "avi", "webm", "mov")
-    }
 }
