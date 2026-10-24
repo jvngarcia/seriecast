@@ -127,7 +127,7 @@ Verificado en un emulador **Android 10 (API 29), imagen AOSP sin Google Play Ser
 | Qué | Estado | Evidencia |
 |---|---|---|
 | Compilación | ✅ | `:app:assembleDebug` verde; APK de 66.383.143 bytes con `libpython3.11.so` en `arm64-v8a`, `armeabi-v7a` y `x86_64` |
-| Tests JVM | ✅ | **53/53**, 0 fallos — SSDP, SOAP `Browse`, DIDL, `Range` 206/416 sobre HTTP real, detección de contenedor, guardas del remux y el guard de publicidad (`NavigationGuard`) |
+| Tests JVM | ✅ | **75/75**, 0 fallos — SSDP, SOAP `Browse`, DIDL, `Range` 206/416 sobre HTTP real, detección de contenedor, guardas del remux, el guard de publicidad (`NavigationGuard`), el omnibox (`Omnibox`) y el User-Agent del descargador (`WebUserAgent`) |
 | Python embebido | ✅ | `Chaquopy started: 3.11.10`; la UI muestra `yt-dlp 2025.01.15` leído del APK; `yt_dlp/`, `certifi/`, `Cryptodome/` dentro de `requirements-common.imy` |
 | Servidor DLNA | ✅ | `description.xml` 200 con `MediaServer:1` y header `EXT:`; `Browse` 200 con DIDL; `isForeground=true foregroundId=4242` |
 | Descarga real desde la UI | ✅ | `Listo: sample 5s.mp4`, 2.848.208 bytes, magic `ftypisom` |
