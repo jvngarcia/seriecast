@@ -39,10 +39,10 @@ contándose; la cadena del reproductor sigue permitida.
 
 | ID | Spec | Qué hace | Ruta | Commit |
 |---|---|---|---|---|
-| T1 | S1-S2-S4 | `Omnibox`: resolución pura de texto a URL o búsqueda, con tests JVM | test-first | — |
-| T2 | S3-S5 | `NavigationGuard`: escape de origen de búsqueda, con tests JVM | test-first | — |
-| T3 | S1 | Cableado en `CaptureScreen` (`Ir` y URL inicial), aviso en Descargar y label "Dirección o búsqueda" | inline | — |
-| T4 | S1-S5 | Docs, build, tests y verificación en el Infinix X692 | inline | — |
+| T1 | S1-S2-S4 | `Omnibox`: resolución pura de texto a URL o búsqueda, con tests JVM | test-first | `fca15d9` |
+| T2 | S3-S5 | `NavigationGuard`: escape de origen de búsqueda, con tests JVM | test-first | `fca15d9` |
+| T3 | S1 | Cableado en `CaptureScreen` (`Ir` y URL inicial), aviso en Descargar y label "Dirección o búsqueda" | inline | `fca15d9` |
+| T4 | S1-S5 | Docs, build, tests y verificación en el Infinix X692 | inline | `fca15d9` |
 
 ## Log
 
@@ -100,3 +100,14 @@ físico y queda anotada arriba.
 
 **L8 (estado):** los cambios están **sin commitear**; los commits de unidad de trabajo quedan
 pendientes de aprobación explícita del usuario.
+
+**L9 (cierre):** el usuario pidió "finaliza la feature". Una sola unidad de trabajo en `fca15d9`
+(rama `feature/omnibox-search`, 12 archivos, +422/−33): los textos que se sacaron de la captura y el
+buscador tocan el mismo archivo, así que separarlos exigía staging parcial sin valor de review.
+Rama apilada sobre `feature/popup-guard` porque el guard todavía no está mergeado a `develop`; el PR
+natural de esta rama tiene esa base hasta que la otra entre.
+
+Queda **sin verificación independiente**: `gentle-ai-verify` devolvió `No result provided` y no creó
+tarea. No se reintentó. Lo que un verificador externo tendría que atacar: `onSearchPage` pegajoso,
+`evilgoogle.com` o `google.com.attacker.tld` colándose por `registrableDomain`, y un `onPageLoaded`
+abortado que deje estado viejo.
