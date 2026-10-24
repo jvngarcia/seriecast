@@ -19,7 +19,7 @@ y deja de exigir una extensión al final del path para clasificar un stream.
 
 > `classify()` solo acepta extensión al final del path: frágil para CDNs con `/playlist?token=`.
 
-**S4 — Bloquear ventanas emergentes (pendiente, no implementado en esta rama):**
+**S4 — Bloquear ventanas emergentes (implementada en `feature/popup-guard`):**
 
 > como puedo probar en el tv?, también anota como un pendiente o posible feature el bloquear ventanas emergentes
 
@@ -42,8 +42,8 @@ la app):
 | T1 | S1 | Pantalla de captura a tamaño completo; `DownloadScreen` deja de hospedar el `WebView`. Lista de capturas en panel inferior y `Usar` vuelve al formulario | inline | `e58c303` |
 | T2 | S3 | `classify()` acepta pistas de HLS/DASH/progresivo cuando el path no trae extensión, sin falsos positivos de assets | test-first | `b58a459` |
 | T3 | S2 | `StreamSniffer.offer` recibe el `Referer` real del request, lo persiste y `Usar` lo precarga en el formulario | test-first | `456683c` |
-| T4 | S1-S3 | Docs y textos de ayuda (README `Uso`), build y verificación en el dispositivo | inline | este commit |
-| T5 | S4 | Bloqueo de ventanas emergentes y de navegaciones publicitarias en la captura | pendiente | — |
+| T4 | S1-S3 | Docs y textos de ayuda (README `Uso`), build y verificación en el dispositivo | inline | `7010247` |
+| T5 | S4 | Bloqueo de ventanas emergentes y de navegaciones publicitarias en la captura | ver `odd/tasks/popup-guard.md` | `9ed543d` (rama `feature/popup-guard`) |
 
 ## Log
 
@@ -77,3 +77,9 @@ quedaron declarados en el informe de diagnóstico sobre `tudorama.com`:
 > como puedo probar en el tv?, también anota como un pendiente o posible feature el bloquear ventanas emergentes
 
 Se anota como S4/T5 (pendiente). No se implementa en esta rama: el pedido fue registrarlo.
+
+**L5 (cierre de T5, 2026-10-23):** T5 se implementó en su propia feature,
+`odd/tasks/popup-guard.md` (rama `feature/popup-guard`: `9ed543d` + `d45e58e` + el commit de docs).
+Verificado en emulador API 29 (AOSP): un click en `target=_blank` no abre ventana y queda contado, una
+redirección a otro dominio se rechaza, y el contador muestra el último host bloqueado. La tabla de
+arriba y S4 ya apuntan ahí; esta feature queda cerrada.

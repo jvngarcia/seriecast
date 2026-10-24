@@ -199,3 +199,18 @@ contra `develop` (nunca contra `main`, ver `AGENTS.md`). Su nombre quedó corto 
 
 Pendiente único del proyecto: instalar el APK en el Note 8 y confirmar que el televisor descubre el
 teléfono (bloqueante WSL2 en L5; sonda `M-SEARCH` en `docs/TV-TROUBLESHOOTING.md` §2).
+
+**L8 (2026-10-23) — estado del repositorio: ninguna tarea de código abierta.**
+
+- Integrado en `develop`: PR #1 (`feature/agents-md-gitflow`), PR #2
+  (`feature/stream-capture-flow`), PR #3 (`feature/download-tab-icon` — glifo propio de descarga en
+  lugar de `Icons.Default.Refresh`).
+- `main` sigue en `8a11d34` (excepción histórica, `AGENTS.md` §9) y `develop` está 20 commits
+  adelante, sin tags: **nunca existió una rama `release/*`**. Para la primera versión hace falta
+  `release/<version>` → PR a `main` **y** vuelta a `develop` (`AGENTS.md` §3).
+- Feature terminada y sin integrar: ninguna de producto. `feature/popup-guard` está cerrada en código
+  (53 tests JVM verdes y verificación en emulador API 29) y espera push + PR; su T5 cierra el
+  pendiente que `stream-capture-flow.md` había anotado.
+- Sigue sin verificar el único punto de L5: que un televisor físico descubra el teléfono por SSDP.
+  Sin hardware y con WSL2 sin USB expuesto, la sonda manual de `docs/TV-TROUBLESHOOTING.md` §2 es la
+  única evidencia posible.
