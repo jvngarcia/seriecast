@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.seriecast.app.download.BlockedKind
 import com.seriecast.app.download.NavigationGuard
+import com.seriecast.app.download.Omnibox
 import com.seriecast.app.download.SniffedStream
 import com.seriecast.app.download.StreamSniffer
 
@@ -56,6 +57,9 @@ import com.seriecast.app.download.StreamSniffer
  * proceeds inside the player chain. The blocked counters are shown, and the address bar is the way
  * out when the guard refuses a host the user actually wants.
  */
+/** Where `Ir` lands when the bar is empty; a blank input is not a search worth running. */
+private const val HOME_URL = "https://www.google.com"
+
 @Composable
 fun CaptureScreen(
     sniffer: StreamSniffer,
@@ -67,7 +71,7 @@ fun CaptureScreen(
     val candidates by sniffer.candidates.collectAsStateWithLifecycle()
     val blocked by guard.blocked.collectAsStateWithLifecycle()
     var address by rememberSaveable { mutableStateOf(initialUrl) }
-    var loadedUrl by rememberSaveable { mutableStateOf(initialUrl.takeIf { it.isNotBlank() }) }
+    var loadedUrl by rememberSaveable { mutableStateOf(Omnibox.resolve(initialUrl)?.url) }
 
     BackHandler(onBack = onClose)
 
@@ -108,19 +112,14 @@ fun CaptureScreen(
                     OutlinedTextField(
                         value = address,
                         onValueChange = { address = it },
-                        label = { Text("Dirección de la página") },
+                        label = { Text("Dirección o búsqueda") },
                         singleLine = true,
                         modifier = Modifier.weight(1f),
                     )
-                    Button(onClick = { loadedUrl = address.trim().ifBlank { "https://www.google.com" } }) {
+                    Button(onClick = { loadedUrl = Omnibox.resolve(address)?.url ?: HOME_URL }) {
                         Text("Ir")
                     }
                 }
-                Text(
-                    "Tocá el servidor y después play en el reproductor. Cuando el stream aparezca " +
-                        "abajo, tocá Usar.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
                 if (blocked.isNotEmpty()) {
                     val popups = guard.countOf(BlockedKind.POPUP)
                     val redirects = guard.countOf(BlockedKind.NAVIGATION)
@@ -136,10 +135,6 @@ fun CaptureScreen(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.error,
                     )
-                    Text(
-                        "Si es un servidor que sí querés, pegá su dirección arriba y tocá Ir.",
-                        style = MaterialTheme.typography.labelSmall,
-                    )
                 }
             }
         }
@@ -153,7 +148,10 @@ fun CaptureScreen(
                     .padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text("Pegá la dirección del episodio y tocá Ir.", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    "Escribí la dirección del episodio o el nombre de la serie, y tocá Ir.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
         } else {
             SnifferWebView(

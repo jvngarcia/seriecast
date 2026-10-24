@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import com.seriecast.app.download.NavigationGuard
 import com.seriecast.app.download.StreamSniffer
+import com.seriecast.app.download.WebUserAgent
 
 /**
  * A real WebView used as a stream sniffer.
@@ -56,8 +57,9 @@ fun SnifferWebView(
                 // the whole answer: no window is created and `window.open` yields null.
                 setSupportMultipleWindows(true)
                 // A plain desktop-ish UA gets the same page a browser gets; some sites serve
-                // degraded markup or refuse playback to the default WebView signature.
-                userAgentString = userAgentString.replace("; wv", "")
+                // degraded markup or refuse playback to the default WebView signature. The
+                // downloader reuses this exact string, because some CDNs answer 404 to any other.
+                userAgentString = WebUserAgent.of(context)
             }
             webChromeClient = object : WebChromeClient() {
                 override fun onCreateWindow(

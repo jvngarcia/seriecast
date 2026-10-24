@@ -14,9 +14,11 @@ import com.seriecast.app.download.DownloadEngine
 import com.seriecast.app.download.DownloadOutcome
 import com.seriecast.app.download.DownloadProgress
 import com.seriecast.app.download.Mp4Remuxer
-import com.seriecast.app.download.ProbeOutcome
 import com.seriecast.app.download.NavigationGuard
+import com.seriecast.app.download.Omnibox
+import com.seriecast.app.download.ProbeOutcome
 import com.seriecast.app.download.StreamSniffer
+import com.seriecast.app.download.WebUserAgent
 import com.seriecast.app.download.YtDlpEngine
 import com.seriecast.app.service.DlnaController
 import com.seriecast.app.service.DlnaService
@@ -64,8 +66,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     val sniffer = StreamSniffer()
 
-    /** Fences the capture WebView: no popups, and no redirect out of the player chain. */
-    val navigationGuard = NavigationGuard()
+    /**
+     * Fences the capture WebView: no popups, and no redirect out of the player chain. The search
+     * engine the address bar uses is registered so a result can be opened while searching.
+     */
+    val navigationGuard = NavigationGuard().apply {
+        registerSearchOrigin(Omnibox.DEFAULT_SEARCH_URL)
+    }
 
     private val _videos = MutableStateFlow<List<VideoRow>>(emptyList())
     val videos: StateFlow<List<VideoRow>> = _videos.asStateFlow()
@@ -152,9 +159,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _busy.value = true
             _probe.value = null
+            // The CDN that served the page may answer 404 to anything that is not a mobile
+            // browser, so the engine must present the same client the WebView presented.
             val auth = AuthContext(
                 referer = form.referer.ifBlank { null },
                 cookie = form.cookie.ifBlank { null },
+                userAgent = WebUserAgent.of(app),
             )
             _probe.value = engine.probe(url, auth)
             _busy.value = false
@@ -196,6 +206,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val auth = AuthContext(
                 referer = form.referer.ifBlank { null },
                 cookie = form.cookie.ifBlank { null },
+                userAgent = WebUserAgent.of(app),
             )
             val maxHeight = form.maxHeight.trim().toIntOrNull() ?: 0
 

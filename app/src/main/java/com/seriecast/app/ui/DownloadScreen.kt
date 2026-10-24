@@ -58,15 +58,16 @@ fun DownloadScreen(
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("1. Capturar la URL del stream", fontWeight = FontWeight.SemiBold)
                 Text(
-                    "Abrí la página del episodio en la pantalla de captura, tocá el servidor y después " +
-                        "play. La captura ocupa toda la pantalla para que el reproductor se pueda usar; " +
-                        "volvés acá con el botón Usar.",
+                    "En la captura, escribí la dirección o el nombre de la serie y tocá Ir: si no es " +
+                        "una dirección, se busca en Google ahí mismo, sin salir de la app. Después tocá " +
+                        "el servidor y play; los streams detectados aparecen en la tira de abajo y " +
+                        "volvés acá con Usar.",
                     style = MaterialTheme.typography.bodySmall,
                 )
                 OutlinedTextField(
                     value = captureUrl,
                     onValueChange = onCaptureUrlChange,
-                    label = { Text("Dirección de la página") },
+                    label = { Text("Dirección o búsqueda") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )

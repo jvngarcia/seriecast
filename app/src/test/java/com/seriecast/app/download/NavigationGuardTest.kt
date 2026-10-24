@@ -140,4 +140,62 @@ class NavigationGuardTest {
         assertNotNull(attempt)
         assertEquals(BlockedKind.NAVIGATION, attempt!!.kind)
     }
+
+    @Test
+    fun `a search page lets a result through and counts nothing`() {
+        guard.registerSearchOrigin(Omnibox.DEFAULT_SEARCH_URL)
+        guard.onPageLoaded("https://www.google.com/search?q=el+flash+temporada+3")
+
+        assertTrue(guard.shouldLoadNavigation("https://filemon.tv/serie/el-flash", isMainFrame = true))
+        assertTrue(guard.blocked.value.isEmpty())
+        assertEquals(0, guard.countOf(BlockedKind.NAVIGATION))
+    }
+
+    @Test
+    fun `leaving the search page puts the guard back`() {
+        guard.registerSearchOrigin(Omnibox.DEFAULT_SEARCH_URL)
+        guard.onPageLoaded("https://www.google.com/search?q=el+flash")
+        assertTrue(guard.shouldLoadNavigation("https://filemon.tv/serie/1", isMainFrame = true))
+
+        // The result is now the document on screen, so the player-chain rules apply again.
+        guard.onPageLoaded("https://filemon.tv/serie/1")
+
+        assertFalse(guard.shouldLoadNavigation("https://ads.example.net/virus.apk", isMainFrame = true))
+        val attempt = guard.blocked.value.single()
+        assertEquals(BlockedKind.NAVIGATION, attempt.kind)
+        assertEquals("ads.example.net", attempt.host)
+    }
+
+    @Test
+    fun `going back to the search page reopens the escape`() {
+        guard.registerSearchOrigin(Omnibox.DEFAULT_SEARCH_URL)
+        guard.onPageLoaded("https://www.google.com/search?q=el+flash")
+        guard.onPageLoaded("https://filemon.tv/serie/1")
+
+        guard.onPageLoaded("https://www.google.com/search?q=el+flash")
+
+        assertTrue(guard.shouldLoadNavigation("https://otroagregador.com/serie", isMainFrame = true))
+        assertTrue(guard.blocked.value.isEmpty())
+    }
+
+    @Test
+    fun `the search engine gets no escape unless it was registered as one`() {
+        val strict = NavigationGuard()
+        strict.onPageLoaded("https://www.google.com/search?q=el+flash")
+
+        assertFalse(strict.shouldLoadNavigation("https://filemon.tv/serie/1", isMainFrame = true))
+        assertEquals(1, strict.countOf(BlockedKind.NAVIGATION))
+    }
+
+    @Test
+    fun `clearing keeps the search escape while the search page is on screen`() {
+        guard.registerSearchOrigin(Omnibox.DEFAULT_SEARCH_URL)
+        guard.onPageLoaded("https://www.google.com/search?q=el+flash")
+        guard.shouldOpenPopup("https://ads.example.net/x")
+
+        guard.clear()
+
+        assertTrue(guard.shouldLoadNavigation("https://filemon.tv/serie/1", isMainFrame = true))
+        assertTrue(guard.blocked.value.isEmpty())
+    }
 }
