@@ -15,20 +15,44 @@ import java.nio.ByteBuffer
  * muxer: MediaExtractor demuxes, MediaMuxer writes an MP4 with an AVC video track and an AAC audio
  * track. That covers what old televisions accept, and it costs no APK size.
  *
+ * The source is read **once**: both tracks are selected before the loop and samples come out in file
+ * order, which is also the interleaved order an MP4 wants. The previous implementation copied video
+ * and then audio in two complete passes; because MPEG-TS has no index, the second pass re-parsed the
+ * whole file just to find audio packets — 16 minutes of CPU for a 1.1 GB episode.
+ *
  * Documented limits: AC-3/DTS/Opus audio cannot go into MP4 this way, and HEVC output depends on the
- * television. When the remux fails the original file is kept, never deleted.
+ * television. When the remux fails or is cancelled the original file is kept, never deleted.
  */
 object Mp4Remuxer {
 
-    data class Result(val file: File, val remuxed: Boolean, val note: String?)
+    data class Result(
+        val file: File,
+        val remuxed: Boolean,
+        val note: String?,
+        val cancelled: Boolean = false,
+    )
+
+    /** What the copy loop knows while it runs: enough for a percentage, a rate and an estimate. */
+    data class Progress(
+        val percent: Float,
+        val processedBytes: Long,
+        val totalBytes: Long,
+        val bytesPerSecond: Double,
+    )
 
     private const val TAG = "Mp4Remuxer"
     private const val BUFFER_SIZE = 4 * 1024 * 1024
+    private const val PROGRESS_INTERVAL_NS = 250_000_000L
 
-    fun ensureMp4(source: File, baseName: String): Result {
+    fun ensureMp4(
+        source: File,
+        baseName: String,
+        onProgress: (Progress) -> Unit = {},
+        isCancelled: () -> Boolean = { false },
+    ): Result {
         return when (ContainerSniffer.detect(source)) {
             Container.MP4 -> Result(normalizeExtension(source, baseName), false, null)
-            Container.MPEG_TS, Container.MATROSKA -> remuxOrKeep(source, baseName)
+            Container.MPEG_TS, Container.MATROSKA -> remuxOrKeep(source, baseName, onProgress, isCancelled)
             Container.UNKNOWN -> Result(
                 source,
                 false,
@@ -60,12 +84,20 @@ object Mp4Remuxer {
         return if (source.renameTo(target)) target else source
     }
 
-    private fun remuxOrKeep(source: File, baseName: String): Result {
+    private fun remuxOrKeep(
+        source: File,
+        baseName: String,
+        onProgress: (Progress) -> Unit,
+        isCancelled: () -> Boolean,
+    ): Result {
         val temp = remuxTarget(source, baseName)
         val desired = File(source.parentFile, "$baseName.mp4")
         if (temp.exists()) temp.delete()
         return try {
-            remux(source, temp)
+            if (!remux(source, temp, onProgress, isCancelled)) {
+                runCatching { temp.delete() }
+                return Result(source, false, null, cancelled = true)
+            }
             if (temp.length() <= 0L) {
                 runCatching { temp.delete() }
                 keepOriginal(source, "El remux a MP4 produjo un archivo vacío.")
@@ -78,7 +110,11 @@ object Mp4Remuxer {
         } catch (t: Throwable) {
             Log.w(TAG, "remux failed: ${t.javaClass.simpleName}: ${t.message}", t)
             runCatching { if (temp.exists()) temp.delete() }
-            keepOriginal(source, "No se pudo remuxear a MP4: ${t.message ?: t.javaClass.simpleName}")
+            keepOriginal(
+                source,
+                "No se pudo convertir a MP4 (${t.javaClass.simpleName}). Se conserva el archivo " +
+                    "descargado sin convertir: puede que el televisor no lo reproduzca.",
+            )
         }
     }
 
@@ -95,7 +131,13 @@ object Mp4Remuxer {
         note,
     )
 
-    private fun remux(source: File, target: File) {
+    /** @return false when the run was cancelled, so the caller discards the partial output. */
+    private fun remux(
+        source: File,
+        target: File,
+        onProgress: (Progress) -> Unit,
+        isCancelled: () -> Boolean,
+    ): Boolean {
         val extractor = MediaExtractor()
         val muxer = MediaMuxer(target.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
         try {
@@ -106,20 +148,86 @@ object Mp4Remuxer {
             val audioTrack = selectTrack(extractor) { it == MediaFormat.MIMETYPE_AUDIO_AAC }
                 ?: selectTrack(extractor) { it.startsWith("audio/") }
 
-            val videoFormat = extractor.getTrackFormat(videoTrack)
-            val videoIndex = muxer.addTrack(videoFormat)
-            val audioIndex = audioTrack?.let { muxer.addTrack(extractor.getTrackFormat(it)) } ?: -1
+            val muxerTracks = LinkedHashMap<Int, Int>()
+            muxerTracks[videoTrack] = muxer.addTrack(extractor.getTrackFormat(videoTrack))
+            audioTrack?.let { muxerTracks[it] = muxer.addTrack(extractor.getTrackFormat(it)) }
 
+            muxerTracks.keys.forEach { extractor.selectTrack(it) }
             muxer.start()
-            copyTrack(extractor, videoTrack, muxer, videoIndex)
-            if (audioTrack != null && audioIndex >= 0) {
-                copyTrack(extractor, audioTrack, muxer, audioIndex)
-            }
+            val complete = copySamples(
+                extractor = extractor,
+                muxer = muxer,
+                gate = SampleGate(videoTrack, muxerTracks),
+                totalBytes = source.length(),
+                onProgress = onProgress,
+                isCancelled = isCancelled,
+            )
+            if (!complete) return false
             muxer.stop()
+            return true
         } finally {
+            // Never call extractor.unselectTrack() here: with the extractor at EOF it throws
+            // IllegalArgumentException, and that exception used to discard an already-written
+            // 1.05 GB MP4 because stop() came after it. release() is enough.
             runCatching { muxer.release() }
             runCatching { extractor.release() }
         }
+    }
+
+    private fun copySamples(
+        extractor: MediaExtractor,
+        muxer: MediaMuxer,
+        gate: SampleGate,
+        totalBytes: Long,
+        onProgress: (Progress) -> Unit,
+        isCancelled: () -> Boolean,
+    ): Boolean {
+        val buffer = ByteBuffer.allocateDirect(BUFFER_SIZE)
+        val info = MediaCodec.BufferInfo()
+        val startedNs = System.nanoTime()
+        var reportedAt = 0L
+        var processed = 0L
+
+        while (true) {
+            if (isCancelled()) return false
+            val size = extractor.readSampleData(buffer, 0)
+            if (size < 0) break
+            processed += size
+            val track = extractor.sampleTrackIndex
+            val keyFrame = extractor.sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC != 0
+            gate.inspect(track, extractor.sampleTime, keyFrame)?.let { decision ->
+                if (size > 0) {
+                    info.offset = 0
+                    info.size = size
+                    info.presentationTimeUs = decision.presentationTimeUs
+                    info.flags = if (decision.keyFrame) MediaCodec.BUFFER_FLAG_KEY_FRAME else 0
+                    muxer.writeSampleData(decision.muxerIndex, buffer, info)
+                }
+            }
+            val now = System.nanoTime()
+            if (now - reportedAt >= PROGRESS_INTERVAL_NS) {
+                reportedAt = now
+                onProgress(progressOf(processed, totalBytes, startedNs, now))
+            }
+            if (!extractor.advance()) break
+        }
+        val doneNs = System.nanoTime()
+        onProgress(Progress(100f, processed, totalBytes, rateOf(processed, startedNs, doneNs)))
+        return true
+    }
+
+    private fun progressOf(processed: Long, totalBytes: Long, startedNs: Long, nowNs: Long): Progress {
+        val percent = if (totalBytes > 0L) {
+            (processed.toDouble() / totalBytes * 100.0).toFloat().coerceIn(0f, 100f)
+        } else {
+            -1f
+        }
+        return Progress(percent, processed, totalBytes, rateOf(processed, startedNs, nowNs))
+    }
+
+    private fun rateOf(processed: Long, startedNs: Long, nowNs: Long): Double {
+        val elapsedSeconds = (nowNs - startedNs).coerceAtLeast(1L) / 1_000_000_000.0
+        return processed / elapsedSeconds
     }
 
     private fun selectTrack(extractor: MediaExtractor, predicate: (String) -> Boolean): Int? {
@@ -128,27 +236,5 @@ object Mp4Remuxer {
             if (predicate(mime)) return index
         }
         return null
-    }
-
-    private fun copyTrack(extractor: MediaExtractor, trackIndex: Int, muxer: MediaMuxer, muxerIndex: Int) {
-        extractor.selectTrack(trackIndex)
-        extractor.seekTo(0, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
-        val buffer = ByteBuffer.allocateDirect(BUFFER_SIZE)
-        val info = MediaCodec.BufferInfo()
-        while (true) {
-            val size = extractor.readSampleData(buffer, 0)
-            if (size < 0) break
-            info.offset = 0
-            info.size = size
-            info.presentationTimeUs = extractor.sampleTime
-            info.flags = if (extractor.sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC != 0) {
-                MediaCodec.BUFFER_FLAG_KEY_FRAME
-            } else {
-                0
-            }
-            muxer.writeSampleData(muxerIndex, buffer, info)
-            if (!extractor.advance()) break
-        }
-        extractor.unselectTrack(trackIndex)
     }
 }

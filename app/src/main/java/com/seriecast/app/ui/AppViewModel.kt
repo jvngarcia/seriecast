@@ -228,9 +228,41 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
             when (outcome) {
                 is DownloadOutcome.Success -> {
-                    _job.value = Job.Running("Ajustando el contenedor a MP4…", null)
+                    _job.value = Job.Running(
+                        ProgressText.line(ProgressText.REMUX, -1f, 0L, 0L, 0.0),
+                        null,
+                    )
                     val remux = withContext(Dispatchers.IO) {
-                        Mp4Remuxer.ensureMp4(outcome.file, baseName)
+                        Mp4Remuxer.ensureMp4(
+                            source = outcome.file,
+                            baseName = baseName,
+                            onProgress = { progress ->
+                                _job.value = Job.Running(
+                                    stage = ProgressText.line(
+                                        kind = ProgressText.REMUX,
+                                        percent = progress.percent,
+                                        downloadedBytes = progress.processedBytes,
+                                        totalBytes = progress.totalBytes,
+                                        speedBytesPerSecond = progress.bytesPerSecond,
+                                    ),
+                                    progress = DownloadProgress(
+                                        status = ProgressText.REMUX,
+                                        percent = progress.percent,
+                                        downloadedBytes = progress.processedBytes,
+                                        totalBytes = progress.totalBytes,
+                                        speedBytesPerSecond = progress.bytesPerSecond,
+                                    ),
+                                )
+                            },
+                            isCancelled = { cancelRequested.get() },
+                        )
+                    }
+                    if (remux.cancelled) {
+                        _job.value = null
+                        _message.value =
+                            "Remux cancelado: se conserva ${outcome.file.name} sin convertir."
+                        refreshLibrary()
+                        return@launch
                     }
                     if (form.publishToGallery) {
                         _job.value = Job.Running("Copiando a Movies/Doramas…", null)
@@ -287,16 +319,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun describe(progress: DownloadProgress): String = when {
         progress.isFinishing -> "Procesando el archivo descargado…"
-        progress.percent >= 0f -> String.format(
-            Locale.US,
-            "Descargando %.0f%% — %s de %s (%s/s)",
-            progress.percent,
-            Storage.humanSize(progress.downloadedBytes),
-            Storage.humanSize(progress.totalBytes),
-            Storage.humanSize(progress.speedBytesPerSecond.toLong()),
+        else -> ProgressText.line(
+            kind = ProgressText.DOWNLOAD,
+            percent = progress.percent,
+            downloadedBytes = progress.downloadedBytes,
+            totalBytes = progress.totalBytes,
+            speedBytesPerSecond = progress.speedBytesPerSecond,
         )
-        progress.downloadedBytes > 0 -> "Descargando ${Storage.humanSize(progress.downloadedBytes)}…"
-        else -> "Conectando con el servidor del stream…"
     }
 
     private fun guessTitle(url: String): String {

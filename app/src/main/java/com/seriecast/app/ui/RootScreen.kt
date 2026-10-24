@@ -14,6 +14,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -45,7 +46,9 @@ fun SerieCastRoot(viewModel: AppViewModel) {
     LaunchedEffect(message) {
         val current = message
         if (current != null) {
-            snackbarHostState.showSnackbar(current)
+            // Long, not the 4 s default: these messages say what is left on disk after a cancel or a
+            // failed remux, and the user has to be able to read it.
+            snackbarHostState.showSnackbar(current, duration = SnackbarDuration.Long)
             viewModel.clearMessage()
         }
     }
