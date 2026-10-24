@@ -15,6 +15,7 @@ import com.seriecast.app.download.DownloadOutcome
 import com.seriecast.app.download.DownloadProgress
 import com.seriecast.app.download.Mp4Remuxer
 import com.seriecast.app.download.ProbeOutcome
+import com.seriecast.app.download.NavigationGuard
 import com.seriecast.app.download.StreamSniffer
 import com.seriecast.app.download.YtDlpEngine
 import com.seriecast.app.service.DlnaController
@@ -62,6 +63,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val cancelRequested = AtomicBoolean(false)
 
     val sniffer = StreamSniffer()
+
+    /** Fences the capture WebView: no popups, and no redirect out of the player chain. */
+    val navigationGuard = NavigationGuard()
 
     private val _videos = MutableStateFlow<List<VideoRow>>(emptyList())
     val videos: StateFlow<List<VideoRow>> = _videos.asStateFlow()

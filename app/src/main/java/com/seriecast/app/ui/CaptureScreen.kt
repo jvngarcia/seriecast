@@ -38,6 +38,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.seriecast.app.download.BlockedKind
+import com.seriecast.app.download.NavigationGuard
 import com.seriecast.app.download.SniffedStream
 import com.seriecast.app.download.StreamSniffer
 
@@ -49,15 +51,21 @@ import com.seriecast.app.download.StreamSniffer
  * that chain practically unreachable: the container scrolled, the page scrolled, and the server list
  * sat below both. Here the WebView owns the whole screen and the captured candidates move to a
  * compact strip at the bottom, so nothing competes for the same gesture.
+ *
+ * The page is fenced by [NavigationGuard]: popups never open and a main-frame redirect only
+ * proceeds inside the player chain. The blocked counters are shown, and the address bar is the way
+ * out when the guard refuses a host the user actually wants.
  */
 @Composable
 fun CaptureScreen(
     sniffer: StreamSniffer,
+    guard: NavigationGuard,
     initialUrl: String,
     onClose: () -> Unit,
     onUse: (SniffedStream) -> Unit,
 ) {
     val candidates by sniffer.candidates.collectAsStateWithLifecycle()
+    val blocked by guard.blocked.collectAsStateWithLifecycle()
     var address by rememberSaveable { mutableStateOf(initialUrl) }
     var loadedUrl by rememberSaveable { mutableStateOf(initialUrl.takeIf { it.isNotBlank() }) }
 
@@ -86,7 +94,12 @@ fun CaptureScreen(
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.weight(1f),
                     )
-                    TextButton(onClick = sniffer::clear) { Text("Limpiar") }
+                    TextButton(
+                        onClick = {
+                            sniffer.clear()
+                            guard.clear()
+                        },
+                    ) { Text("Limpiar") }
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -108,6 +121,26 @@ fun CaptureScreen(
                         "abajo, tocá Usar.",
                     style = MaterialTheme.typography.bodySmall,
                 )
+                if (blocked.isNotEmpty()) {
+                    val popups = guard.countOf(BlockedKind.POPUP)
+                    val redirects = guard.countOf(BlockedKind.NAVIGATION)
+                    // A popup is refused before its destination is known, so only a redirect has a
+                    // host worth showing.
+                    val lastHost = blocked.first().host
+                    val summary = buildString {
+                        append("Bloqueado: $popups ventana(s) · $redirects redirección(es)")
+                        if (lastHost.isNotEmpty()) append(" · último: $lastHost")
+                    }
+                    Text(
+                        summary,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    Text(
+                        "Si es un servidor que sí querés, pegá su dirección arriba y tocá Ir.",
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
             }
         }
 
@@ -125,6 +158,7 @@ fun CaptureScreen(
         } else {
             SnifferWebView(
                 sniffer = sniffer,
+                guard = guard,
                 loadUrl = current,
                 modifier = Modifier
                     .weight(1f)
