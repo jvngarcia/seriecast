@@ -101,7 +101,7 @@ for m in re.finditer(r'<node[^>]*>', xml):
     rows.append(((t.group(1) if t else ''), (c.group(1) if c else ''), y1))
 rows.sort(key=lambda r: r[2])
 for text, cls, y in rows:
-    if 'samplelib' in text or 'URL del stream' in text or 'Dirección de la página' in text:
+    if 'samplelib' in text or 'URL del stream' in text or 'Dirección o búsqueda' in text:
         print(f"    y={y:4d} class={cls.split('.')[-1]:12s} text={text[:70]}")
 PY
 

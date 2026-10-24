@@ -56,8 +56,8 @@ tap "Descargar" nav || tap "Ir a Descargar" content || exit 1
 sleep 3; dump
 grep -q 'Descarga de episodios' /tmp/ui.xml || { echo "  no llegue"; grep -oE 'text="[^"]{3,50}"' /tmp/ui.xml | head; exit 1; }
 
-say "2. escribir la URL de media en 'Dirección de la página'"
-c=$(reveal "Dirección de la página") || { echo "  sin campo de direccion"; exit 1; }
+say "2. escribir la URL de media en 'Dirección o búsqueda'"
+c=$(reveal "Dirección o búsqueda") || { echo "  sin campo de direccion"; exit 1; }
 echo "  campo en ($c)"; "$ADB" shell input tap $c; sleep 1
 "$ADB" shell input text "$HLS"; sleep 1
 dump; echo "  campo: $(grep -oE 'text="https://test-streams[^"]*"' /tmp/ui.xml | head -1)"

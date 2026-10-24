@@ -32,6 +32,11 @@ data class BlockedAttempt(
  *
  * The escape hatch is the address bar of the capture screen: loading a URL from there marks it as
  * the trusted page and never passes through this guard.
+ *
+ * A registered search origin is a second, narrower escape: while the document on screen is the
+ * search engine the bar resolved, a click on any result is the user's own choice and must go
+ * through, otherwise searching inside the app would be decorative. The moment a result loads,
+ * `onPageLoaded` re-anchors the trusted page to it and these rules apply again.
  */
 class NavigationGuard {
 
@@ -48,13 +53,27 @@ class NavigationGuard {
     @Volatile
     private var trustedPageDomain: String? = null
 
+    /** Domains the address bar treats as a search engine; their page allows any result. */
+    private val searchOrigins = LinkedHashSet<String>()
+
+    /** True when the document on screen is a registered search engine. */
+    @Volatile
+    private var onSearchPage = false
+
     /** Registrable domains of the hosts that served a stream; dropped when the capture is cleared. */
     private val trustedStreamDomains = LinkedHashSet<String>()
+
+    /** Marks a search engine as a page whose results may always be opened. */
+    fun registerSearchOrigin(url: String) {
+        hostOf(url)?.let { searchOrigins += registrableDomain(it) }
+    }
 
     /** Marks the page the user navigated to as the root of the player chain. */
     fun onPageLoaded(url: String) {
         val host = hostOf(url) ?: return
-        trustedPageDomain = registrableDomain(host)
+        val domain = registrableDomain(host)
+        trustedPageDomain = domain
+        onSearchPage = domain in searchOrigins
     }
 
     /** Marks a URL that was accepted as a media stream; only those hosts can be navigated to. */
@@ -75,6 +94,9 @@ class NavigationGuard {
         val scheme = schemeOf(targetUrl) ?: return true
         // Only a real web page can take the player away from the user.
         if (scheme != "http" && scheme != "https") return true
+        // A search page is a browser: opening a result is the whole point of being there. It is not
+        // counted, because the user asked for it and nothing is being hijacked.
+        if (onSearchPage) return true
         val trustedPage = trustedPageDomain ?: return true
         val domain = registrableDomain(host)
         if (domain == trustedPage || domain in trustedStreamDomains) return true

@@ -83,14 +83,17 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ## Uso
 
 1. **Videos → Iniciar servidor DLNA.** Aparece `http://192.168.x.x:8080`.
-2. **Descargar → Capturar la URL del stream.** Abrí la página del episodio y tocá **Abrir
-   navegador**: la captura ocupa toda la pantalla, así que el reproductor se puede usar. Dentro de
-   la página tocá el servidor y después play; cuando el stream aparezca en la franja de abajo,
-   tocá **Usar** y volvés al formulario con la URL, el Referer del reproductor y la cookie ya
-   cargados. La captura bloquea las ventanas emergentes y las redirecciones a otro dominio de los
-   anuncios, y muestra cuántas bloqueó. Si el bloqueo se comió un servidor que sí querías, pegá su
-   dirección en la barra de arriba y tocá **Ir**. También podés pegar la URL del `.m3u8` a mano.
-   Completá serie/temporada/episodio y descargá.
+2. **Descargar → Capturar la URL del stream.** Si no sabés la dirección del episodio, escribí el
+   nombre de la serie en **Dirección o búsqueda** y tocá **Abrir navegador**: esa barra funciona como
+   la de un navegador, así que lo que no es una dirección se busca en Google dentro de la app y
+   podés tocar un resultado sin salir a otro lado. La captura ocupa toda la pantalla, así que el
+   reproductor se puede usar. Dentro de la página tocá el servidor y después play; cuando el stream
+   aparezca en la franja de abajo, tocá **Usar** y volvés al formulario con la URL, el Referer del
+   reproductor y la cookie ya cargados. La captura bloquea las ventanas emergentes y las
+   redirecciones a otro dominio de los anuncios, y muestra cuántas bloqueó; mientras la página en
+   pantalla es el buscador, tocar un resultado sí se permite. Si el bloqueo se comió un servidor que
+   sí querías, pegá su dirección en la barra de arriba y tocá **Ir**. También podés pegar la URL del
+   `.m3u8` a mano. Completá serie/temporada/episodio y descargá.
 3. En el televisor: **Fuente / Red → DLNA** y buscá `SerieCast (<modelo del teléfono>)`.
    La frase textual que muestra la app es: *"En tu televisor, abre la sección DLNA/Red y busca el
    nombre de tu teléfono"*.
@@ -128,6 +131,7 @@ Verificado en un emulador **Android 10 (API 29), imagen AOSP sin Google Play Ser
 | Servir a un televisor | ✅ | `GET` 200 con el tamaño exacto; `Range 0-99`, `1000-`, sufijo `-16` y `1000000-1000099` → 206 con `Content-Range` correcto; `416` con `bytes */N`; `HEAD`; `404` |
 | Sniffer de WebView (§S4) | ✅ | `shouldInterceptRequest` capturó el `.m3u8`, apareció como `HLS · test-streams.mux.dev`, y `Usar` copió URL y Referer al formulario. Verificado de nuevo en el Note 8 contra un agregador real (`tudorama.com`, servidor earnvids): captura a pantalla completa, `HLS · callistanise.com · master.m3u8` y `Usar` cargó `Referer: https://callistanise.com/embed/v7pml7nsxiap` (el reproductor, no la página del agregador) |
 | Guard de publicidad en la captura | ✅ | En el emulador API 29, con una página servida desde el host: un `target="_blank"` clickeado no abrió ventana y quedó contado (`Bloqueado: 1 ventana(s)`), `location.href` a otro dominio fue rechazado (`1 redirección(es) · último: ads.example.net`) con la app todavía al frente, y una navegación del mismo host siguió funcionando (`CADENA OK`). Arnés: `scripts/verification/seriecast-popup-guard-test.sh` |
+| Omnibox: buscar sin salir de la app | ✅ | En el Note 8: `el flash temporada 3` en **Dirección o búsqueda** abrió resultados de Google dentro de la captura; tocar un resultado cargó HobbyConsolas **sin ningún bloqueo contado**; `127.0.0.1:8099` se resolvió a `https://127.0.0.1:8099/` (`ERR_SSL_PROTOCOL_ERROR` contra un servidor HTTP, o sea que antepuso el esquema); y desde una página que no es el buscador el popup y el redirect siguieron rechazados y contados (`1 ventana(s) · 1 redirección(es) · último: ads.example.net`). 71 tests JVM en verde |
 | **Descubrimiento por un televisor físico** | ❌ **sin verificar** | requiere el TV en la misma LAN. Depende del router y del firmware; usar el autodiagnóstico y la sonda `M-SEARCH` de `docs/TV-TROUBLESHOOTING.md` |
 
 Cadena de build usada: JDK 17.0.20.1 + Gradle 8.9 + Android SDK 35 + CPython 3.11.17.

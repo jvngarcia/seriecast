@@ -102,7 +102,7 @@ reveal() {
 }
 
 type_address() {
-  local c; c=$(reveal "Dirección de la página") || { echo "  sin campo de direccion"; return 1; }
+  local c; c=$(reveal "Dirección o búsqueda") || { echo "  sin campo de direccion"; return 1; }
   "$ADB" shell input tap $c; sleep 1
   "$ADB" shell input keyevent KEYCODE_MOVE_END >/dev/null 2>&1
   for _ in $(seq 1 60); do "$ADB" shell input keyevent KEYCODE_DEL >/dev/null 2>&1; done

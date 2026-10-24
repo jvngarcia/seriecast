@@ -14,8 +14,9 @@ import com.seriecast.app.download.DownloadEngine
 import com.seriecast.app.download.DownloadOutcome
 import com.seriecast.app.download.DownloadProgress
 import com.seriecast.app.download.Mp4Remuxer
-import com.seriecast.app.download.ProbeOutcome
 import com.seriecast.app.download.NavigationGuard
+import com.seriecast.app.download.Omnibox
+import com.seriecast.app.download.ProbeOutcome
 import com.seriecast.app.download.StreamSniffer
 import com.seriecast.app.download.YtDlpEngine
 import com.seriecast.app.service.DlnaController
@@ -64,8 +65,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     val sniffer = StreamSniffer()
 
-    /** Fences the capture WebView: no popups, and no redirect out of the player chain. */
-    val navigationGuard = NavigationGuard()
+    /**
+     * Fences the capture WebView: no popups, and no redirect out of the player chain. The search
+     * engine the address bar uses is registered so a result can be opened while searching.
+     */
+    val navigationGuard = NavigationGuard().apply {
+        registerSearchOrigin(Omnibox.DEFAULT_SEARCH_URL)
+    }
 
     private val _videos = MutableStateFlow<List<VideoRow>>(emptyList())
     val videos: StateFlow<List<VideoRow>> = _videos.asStateFlow()
